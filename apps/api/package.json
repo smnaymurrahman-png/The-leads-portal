@@ -1,0 +1,61 @@
+{
+  "name": "@leads-portal/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Leads Portal backend — NestJS API",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "lint": "eslint \"src/**/*.ts\"",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "prisma db seed",
+    "db:check": "node --env-file-if-exists=.env -r ts-node/register scripts/db-check.ts",
+    "test:concurrency": "node --env-file-if-exists=.env -r ts-node/register/transpile-only scripts/distribution-concurrency-test.ts",
+    "rbac:audit": "node --env-file-if-exists=.env -r ts-node/register/transpile-only scripts/rbac-audit.ts"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
+  },
+  "dependencies": {
+    "@leads-portal/shared": "workspace:*",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/event-emitter": "^3.1.0",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.1.22",
+    "@nestjs/throttler": "^6.5.0",
+    "@nestjs/websockets": "^11.1.22",
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^3.0.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "libphonenumber-js": "^1.13.2",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
+    "stripe": "^22.1.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/passport": "^1.0.17",
+    "@types/passport-jwt": "^4.0.1",
+    "prisma": "^6.2.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.6.3"
+  }
+}

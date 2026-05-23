@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Dependencies allowed to run install/postinstall build scripts.
+# Prisma needs this to download its query engine and generate the client;
+# sharp ships native image-processing binaries used by Next.js.
+allowBuilds:
+  '@nestjs/core': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
