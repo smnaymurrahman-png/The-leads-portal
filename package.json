@@ -4,7 +4,7 @@
   "private": true,
   "description": "Multi-vertical lead-generation management and live distribution platform",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "packageManager": "pnpm@11.2.2",
   "scripts": {
