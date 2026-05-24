@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Leads Portal backend — NestJS API",
+  "packageManager": "pnpm@11.2.2",
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
