@@ -1,13 +1,47 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
-import { Button, Input, Panel, Select, Table } from '@/components/ui';
+import { useState } from 'react';
+import { Check, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Field, FormDialog } from '@/components/FormDialog';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 import { clean, num, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
 
 const LEAD_TYPES = ['SOLAR', 'SWEEPSTAKES', 'PAYDAY', 'HOMEOWNER'];
 const DELIVERY_MODES = ['EXCLUSIVE', 'SHARED'];
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  REQUESTED: 'outline',
+  ACCEPTED: 'secondary',
+  INVOICED: 'outline',
+  PAYMENT_FAILED: 'destructive',
+  ACTIVE: 'default',
+  FULFILLING: 'default',
+  COMPLETED: 'secondary',
+  REJECTED: 'destructive',
+  CANCELLED: 'destructive',
+  REFUNDED: 'destructive',
+};
 
 interface OrderRow {
   id: string;
@@ -23,6 +57,9 @@ interface OrderRow {
   client: { full_name: string; business_name: string | null } | null;
 }
 
+const money = (n: string | number): string =>
+  `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 /**
  * Order lifecycle screen. CLIENT places orders and pays; ADMIN/SUPER_ADMIN
  * accept or reject; AGENT views only.
@@ -32,17 +69,11 @@ export function OrdersScreen({ role }: { role: string }) {
   const isDecider = role === 'ADMIN' || role === 'SUPER_ADMIN';
   const { data: orders, loading, error, reload } = useResource<OrderRow>('orders');
 
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  async function onCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget;
+  async function onCreate(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
-    setSaving(true);
-    setFormError(null);
 
     let criteria: Record<string, unknown> = {};
     const rawCriteria = str(fd.get('criteria'));
@@ -50,27 +81,18 @@ export function OrdersScreen({ role }: { role: string }) {
       try {
         criteria = JSON.parse(rawCriteria) as Record<string, unknown>;
       } catch {
-        setFormError('Criteria must be valid JSON.');
-        setSaving(false);
-        return;
+        throw new Error('Criteria must be valid JSON.');
       }
     }
 
-    try {
-      await apiSend('POST', 'orders', {
-        lead_type: str(fd.get('lead_type')),
-        delivery_mode: str(fd.get('delivery_mode')),
-        quantity: num(fd.get('quantity')),
-        criteria,
-        ...clean({ requirements: opt(fd.get('requirements')) }),
-      });
-      form.reset();
-      await reload();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to create order');
-    } finally {
-      setSaving(false);
-    }
+    await apiSend('POST', 'orders', {
+      lead_type: str(fd.get('lead_type')),
+      delivery_mode: str(fd.get('delivery_mode')),
+      quantity: num(fd.get('quantity')),
+      criteria,
+      ...clean({ requirements: opt(fd.get('requirements')) }),
+    });
+    await reload();
   }
 
   async function runAction(id: string, path: string, body: unknown): Promise<void> {
@@ -96,18 +118,30 @@ export function OrdersScreen({ role }: { role: string }) {
   function rowActions(order: OrderRow) {
     if (isDecider && order.status === 'REQUESTED') {
       return (
-        <div className="flex gap-2">
-          <Button type="button" disabled={busyId === order.id} onClick={() => void runAction(order.id, 'accept', {})}>
+        <div className="flex justify-end gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            disabled={busyId === order.id}
+            onClick={() => void runAction(order.id, 'accept', {})}
+          >
+            {busyId === order.id ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Check className="size-3.5" />
+            )}
             Accept
           </Button>
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
             disabled={busyId === order.id}
             onClick={() => reject(order.id)}
-            className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
           >
+            <X className="size-3.5" />
             Reject
-          </button>
+          </Button>
         </div>
       );
     }
@@ -116,110 +150,178 @@ export function OrdersScreen({ role }: { role: string }) {
       order.stripe_payment_link
     ) {
       return (
-        <div className="flex gap-2">
-          <a
-            href={order.stripe_payment_link}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+        <div className="flex justify-end gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            render={
+              <a href={order.stripe_payment_link} target="_blank" rel="noreferrer noopener" />
+            }
           >
-            Pay now
-          </a>
+            <ExternalLink className="size-3.5" />
+            Pay
+          </Button>
           {(isClient || isDecider) && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
               disabled={busyId === order.id}
               onClick={() => void runAction(order.id, 'payment-link', {})}
-              className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+              aria-label="Regenerate payment link"
+              title="Regenerate payment link"
             >
-              New link
-            </button>
+              <RefreshCw className="size-3.5" />
+            </Button>
           )}
         </div>
       );
     }
-    return <span className="text-slate-600">—</span>;
+    return <span className="text-muted-foreground">—</span>;
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-100">Orders</h1>
-        <p className="text-sm text-slate-500">
-          {isClient
+    <div>
+      <PageHeader
+        eyebrow="Operations"
+        title="Orders"
+        description={
+          isClient
             ? 'Request leads, then pay the invoice to activate the order.'
             : isDecider
               ? 'Accept an order to invoice the client, or reject it with a note.'
-              : 'Orders placed by your clients (view only).'}
-        </p>
-      </header>
+              : 'Orders placed by your clients (view only).'
+        }
+        actions={
+          isClient ? (
+            <FormDialog
+              triggerLabel="Place order"
+              title="Request an order"
+              description="Submitted orders are reviewed by an admin before invoicing."
+              submitLabel="Submit request"
+              contentClassName="max-w-xl"
+              onSubmit={onCreate}
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Lead type">
+                  <Select name="lead_type" defaultValue="SOLAR">
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEAD_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t.toLowerCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Delivery mode">
+                  <Select name="delivery_mode" defaultValue="EXCLUSIVE">
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DELIVERY_MODES.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m.toLowerCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Quantity">
+                  <Input
+                    name="quantity"
+                    type="number"
+                    min={1}
+                    defaultValue={10}
+                    required
+                  />
+                </Field>
+                <Field label="Requirements">
+                  <Input name="requirements" placeholder="optional" />
+                </Field>
+                <Field label="Criteria JSON" hint="optional" className="sm:col-span-2">
+                  <Input
+                    name="criteria"
+                    placeholder='{"geo":{"state":"AZ"},"age_min":25}'
+                  />
+                </Field>
+              </div>
+            </FormDialog>
+          ) : null
+        }
+      />
 
-      {isClient && (
-        <Panel title="Request an order">
-          <form onSubmit={onCreate} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Select label="Lead type" name="lead_type" defaultValue="SOLAR" required>
-              {LEAD_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </Select>
-            <Select label="Delivery mode" name="delivery_mode" defaultValue="EXCLUSIVE" required>
-              {DELIVERY_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </Select>
-            <Input label="Quantity" name="quantity" type="number" min={1} defaultValue={10} required />
-            <Input label="Requirements" name="requirements" />
-            <Input
-              label='Criteria JSON (e.g. {"geo":{"state":"AZ"}})'
-              name="criteria"
-              className="sm:col-span-2"
-            />
-            <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Submitting…' : 'Submit request'}
-              </Button>
-              {formError && <span className="text-sm text-red-400">{formError}</span>}
-            </div>
-          </form>
-        </Panel>
+      {actionError && (
+        <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {actionError}
+        </p>
       )}
 
-      <Panel title={`Orders (${orders.length})`}>
-        {actionError && <p className="mb-3 text-sm text-red-400">{actionError}</p>}
-        {loading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
-        ) : error ? (
-          <p className="text-sm text-red-400">{error}</p>
-        ) : orders.length === 0 ? (
-          <p className="text-sm text-slate-500">No orders yet.</p>
-        ) : (
-          <Table
-            headers={['Order', 'Client', 'Type', 'Mode', 'Qty', 'Remaining', 'Total', 'Status', 'Actions']}
-            rows={orders.map((o) => [
-              <span key="id" className="font-mono text-xs">
-                {o.public_order_id}
-              </span>,
-              o.client?.business_name ?? o.client?.full_name ?? '—',
-              o.lead_type,
-              o.delivery_mode,
-              o.quantity_paid,
-              o.quantity_remaining,
-              `$${o.total_amount}`,
-              <span key="status">
-                {o.status}
-                {o.reject_note && (
-                  <span className="block text-xs text-slate-500">{o.reject_note}</span>
-                )}
-              </span>,
-              rowActions(o),
-            ])}
-          />
-        )}
-      </Panel>
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="px-6 py-12 text-sm text-muted-foreground">Loading orders…</p>
+          ) : error ? (
+            <p className="px-6 py-12 text-sm text-destructive">{error}</p>
+          ) : orders.length === 0 ? (
+            <p className="px-6 py-12 text-sm text-muted-foreground">No orders yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Mode</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Remaining</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-mono text-xs">{o.public_order_id}</TableCell>
+                    <TableCell className="text-sm">
+                      {o.client?.business_name ?? o.client?.full_name ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">
+                      {o.lead_type.toLowerCase()}
+                    </TableCell>
+                    <TableCell className="text-sm capitalize">
+                      {o.delivery_mode.toLowerCase()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{o.quantity_paid}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {o.quantity_remaining}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {money(o.total_amount)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <Badge variant={STATUS_VARIANT[o.status] ?? 'outline'}>
+                          {o.status.toLowerCase().replace('_', ' ')}
+                        </Badge>
+                        {o.reject_note && (
+                          <span className="text-xs text-muted-foreground">{o.reject_note}</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{rowActions(o)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -2,8 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { Panel, Table } from '@/components/ui';
+import { Bell, Phone, Wifi, WifiOff, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 import { apiGet } from '@/lib/proxy-client';
+import { cn } from '@/lib/utils';
 
 interface LeadItem {
   assignmentId: string;
@@ -23,6 +36,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 /** Socket.IO attaches to the API origin, not the `/api` REST prefix. */
 const SOCKET_ORIGIN = API_URL.replace(/\/api\/?$/, '');
 
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  DELIVERED: 'default',
+  PENDING: 'outline',
+  FAILED: 'destructive',
+};
+
 function isToday(iso: string): boolean {
   const date = new Date(iso);
   const now = new Date();
@@ -33,9 +52,12 @@ function isToday(iso: string): boolean {
   );
 }
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
 export function LiveLeadsScreen() {
   const [leads, setLeads] = useState<LeadItem[]>([]);
-  const [tab, setTab] = useState<'today' | 'all'>('today');
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,7 +67,6 @@ export function LiveLeadsScreen() {
     let socket: Socket | null = null;
 
     async function start(): Promise<void> {
-      // 1. Load the existing leads.
       try {
         const initial = await apiGet<LeadItem[]>('leads/mine');
         if (!cancelled) setLeads(initial);
@@ -53,7 +74,6 @@ export function LiveLeadsScreen() {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load leads');
       }
 
-      // 2. Fetch a socket token (the JWT, copied out of the httpOnly cookie).
       let token: string;
       try {
         const res = await fetch('/api/auth/socket-token');
@@ -65,7 +85,6 @@ export function LiveLeadsScreen() {
       }
       if (cancelled) return;
 
-      // 3. Connect, authenticated with the same JWT as REST.
       socket = io(SOCKET_ORIGIN, { auth: { token }, transports: ['websocket', 'polling'] });
 
       socket.on('connect', () => setStatus('live'));
@@ -103,68 +122,162 @@ export function LiveLeadsScreen() {
     };
   }, []);
 
-  const visible = tab === 'today' ? leads.filter((lead) => isToday(lead.createdAt)) : leads;
-  const badge: Record<ConnectionStatus, { label: string; className: string }> = {
-    connecting: { label: '● connecting', className: 'text-amber-400' },
-    live: { label: '● live', className: 'text-emerald-400' },
-    offline: { label: '● offline', className: 'text-red-400' },
-  };
+  const today = leads.filter((lead) => isToday(lead.createdAt));
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-100">Live Leads</h1>
-          <p className="text-sm text-slate-500">New leads stream in the moment they are delivered.</p>
-        </div>
-        <span className={`text-sm font-medium ${badge[status].className}`}>{badge[status].label}</span>
-      </header>
+    <div>
+      <PageHeader
+        eyebrow="Live"
+        title="Live leads"
+        description="New leads stream in the moment they are delivered."
+        actions={<ConnectionPill status={status} />}
+      />
 
       {notice && (
-        <div className="rounded-md border border-blue-800 bg-blue-950/50 px-3 py-2 text-sm text-blue-200">
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+          <Bell className="size-4 text-primary" />
           {notice}
         </div>
       )}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
-      <div className="flex gap-1">
-        {(['today', 'all'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`rounded px-3 py-1.5 text-sm ${
-              tab === key
-                ? 'bg-slate-800 text-slate-100'
-                : 'text-slate-400 hover:bg-slate-800/60'
-            }`}
-          >
-            {key === 'today' ? "Today's Leads" : 'My Leads'}
-          </button>
-        ))}
-      </div>
+      <Tabs defaultValue="today">
+        <TabsList>
+          <TabsTrigger value="today">
+            Today's leads
+            <span className="ml-1 text-xs text-muted-foreground">({today.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="all">
+            All leads
+            <span className="ml-1 text-xs text-muted-foreground">({leads.length})</span>
+          </TabsTrigger>
+        </TabsList>
 
-      <Panel title={`${tab === 'today' ? "Today's Leads" : 'My Leads'} (${visible.length})`}>
-        {visible.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            No leads yet — delivered leads appear here instantly.
-          </p>
-        ) : (
-          <Table
-            headers={['Lead', 'Type', 'Name', 'Phone', 'State', 'Status']}
-            rows={visible.map((lead) => [
-              <span key="id" className="font-mono text-xs">
-                {lead.publicLeadId}
-              </span>,
-              lead.leadType,
-              lead.fullName ?? '—',
-              lead.phone ?? '—',
-              lead.state ?? '—',
-              lead.deliveryStatus,
-            ])}
+        <TabsContent value="today">
+          <LeadsTable rows={today} emptyMessage="No leads delivered today yet." />
+        </TabsContent>
+        <TabsContent value="all">
+          <LeadsTable
+            rows={leads}
+            emptyMessage="No leads delivered yet — they appear here instantly."
           />
-        )}
-      </Panel>
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function ConnectionPill({ status }: { status: ConnectionStatus }) {
+  const meta = {
+    connecting: {
+      label: 'Connecting',
+      Icon: Wifi,
+      className: 'text-amber-700 bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300',
+      pulse: true,
+    },
+    live: {
+      label: 'Live',
+      Icon: Zap,
+      className: 'text-emerald-700 bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300',
+      pulse: true,
+    },
+    offline: {
+      label: 'Offline',
+      Icon: WifiOff,
+      className: 'text-destructive bg-destructive/10',
+      pulse: false,
+    },
+  }[status];
+  const { Icon } = meta;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+        meta.className,
+      )}
+    >
+      <span className="relative flex size-2 items-center justify-center">
+        <span
+          className={cn(
+            'absolute inline-flex size-2 rounded-full bg-current',
+            meta.pulse && 'animate-ping opacity-75',
+          )}
+        />
+        <span className="relative inline-flex size-1.5 rounded-full bg-current" />
+      </span>
+      <Icon className="size-3.5" />
+      {meta.label}
+    </span>
+  );
+}
+
+function LeadsTable({ rows, emptyMessage }: { rows: LeadItem[]; emptyMessage: string }) {
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
+          <Zap className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead>Lead</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((lead) => (
+              <TableRow key={lead.assignmentId}>
+                <TableCell className="text-xs text-muted-foreground tabular-nums">
+                  {formatTime(lead.createdAt)}
+                </TableCell>
+                <TableCell className="font-mono text-xs">{lead.publicLeadId}</TableCell>
+                <TableCell className="text-sm capitalize">
+                  {lead.leadType.toLowerCase()}
+                </TableCell>
+                <TableCell className="text-sm">{lead.fullName ?? '—'}</TableCell>
+                <TableCell className="text-sm">
+                  {lead.phone ? (
+                    <a
+                      href={`tel:${lead.phone}`}
+                      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                    >
+                      <Phone className="size-3.5" />
+                      {lead.phone}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {lead.state ?? '—'}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={STATUS_VARIANT[lead.deliveryStatus] ?? 'outline'}>
+                    {lead.deliveryStatus.toLowerCase()}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }

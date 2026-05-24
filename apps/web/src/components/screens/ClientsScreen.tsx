@@ -1,7 +1,25 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
-import { Button, Input, Panel, Select, Table } from '@/components/ui';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Field, FormDialog } from '@/components/FormDialog';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 import { clean, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -14,112 +32,156 @@ interface ClientRow {
   phone: string | null;
   status: string;
 }
+
 interface AgentOption {
   id: string;
   full_name: string;
 }
 
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  ACTIVE: 'default',
+  PENDING: 'outline',
+  SUSPENDED: 'destructive',
+  INACTIVE: 'secondary',
+};
+
 /** Client (buyer) management. AGENT sees only their own; staff see all. */
 export function ClientsScreen({ role }: { role: string }) {
   const isStaff = role === 'ADMIN' || role === 'SUPER_ADMIN';
   const { data: clients, loading, error, reload } = useResource<ClientRow>('clients');
-  // Staff pick the owning agent; an AGENT owns the clients they create.
   const agents = useResource<AgentOption>(isStaff ? 'users?role=AGENT' : null);
 
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget;
+  async function onSubmit(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
-    setSaving(true);
-    setFormError(null);
-    try {
-      await apiSend(
-        'POST',
-        'clients',
-        clean({
-          full_name: str(fd.get('full_name')),
-          email: str(fd.get('email')),
-          password: str(fd.get('password')),
-          phone: opt(fd.get('phone')),
-          whatsapp: opt(fd.get('whatsapp')),
-          business_name: opt(fd.get('business_name')),
-          address: opt(fd.get('address')),
-          agent_id: isStaff ? opt(fd.get('agent_id')) : undefined,
-        }),
-      );
-      form.reset();
-      await reload();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to create client');
-    } finally {
-      setSaving(false);
-    }
+    await apiSend(
+      'POST',
+      'clients',
+      clean({
+        full_name: str(fd.get('full_name')),
+        email: str(fd.get('email')),
+        password: str(fd.get('password')),
+        phone: opt(fd.get('phone')),
+        whatsapp: opt(fd.get('whatsapp')),
+        business_name: opt(fd.get('business_name')),
+        address: opt(fd.get('address')),
+        agent_id: isStaff ? opt(fd.get('agent_id')) : undefined,
+      }),
+    );
+    await reload();
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-100">Clients</h1>
-        <p className="text-sm text-slate-500">
-          {isStaff
-            ? 'Every client across all agents.'
-            : 'The clients you own. Other agents’ clients are not visible.'}
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        eyebrow="Management"
+        title="Clients"
+        description={
+          isStaff
+            ? 'Every client account across the network.'
+            : "The clients you own. Other agents' clients are not visible."
+        }
+        actions={
+          <FormDialog
+            triggerLabel="New client"
+            title="Create a client account"
+            description="Clients can log in and place orders immediately."
+            submitLabel="Create client"
+            onSubmit={onSubmit}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {isStaff && (
+                <Field label="Owning agent" className="sm:col-span-2">
+                  <Select name="agent_id">
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={agents.loading ? 'Loading agents…' : 'Select an agent'}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agents.data.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+              <Field label="Full name">
+                <Input name="full_name" required />
+              </Field>
+              <Field label="Email">
+                <Input name="email" type="email" required />
+              </Field>
+              <Field label="Password" hint="min 8 chars">
+                <Input name="password" type="password" minLength={8} required />
+              </Field>
+              <Field label="Phone">
+                <Input name="phone" />
+              </Field>
+              <Field label="WhatsApp">
+                <Input name="whatsapp" />
+              </Field>
+              <Field label="Business name">
+                <Input name="business_name" />
+              </Field>
+              <Field label="Address" className="sm:col-span-2">
+                <Input name="address" />
+              </Field>
+            </div>
+          </FormDialog>
+        }
+      />
 
-      <Panel title="Add a client">
-        <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {isStaff && (
-            <Select label="Owning agent" name="agent_id" required defaultValue="">
-              <option value="" disabled>
-                {agents.loading ? 'Loading agents…' : 'Select an agent'}
-              </option>
-              {agents.data.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.full_name}
-                </option>
-              ))}
-            </Select>
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="px-6 py-12 text-sm text-muted-foreground">Loading clients…</p>
+          ) : error ? (
+            <p className="px-6 py-12 text-sm text-destructive">{error}</p>
+          ) : clients.length === 0 ? (
+            <p className="px-6 py-12 text-sm text-muted-foreground">No clients yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Business</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clients.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.full_name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {c.business_name ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        href={`mailto:${c.email}`}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        {c.email}
+                      </a>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {c.phone ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>
+                        {c.status.toLowerCase()}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-          <Input label="Full name" name="full_name" required />
-          <Input label="Email" name="email" type="email" required />
-          <Input label="Password" name="password" type="password" minLength={8} required />
-          <Input label="Phone" name="phone" />
-          <Input label="WhatsApp" name="whatsapp" />
-          <Input label="Business name" name="business_name" />
-          <Input label="Address" name="address" />
-          <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Create client'}
-            </Button>
-            {formError && <span className="text-sm text-red-400">{formError}</span>}
-          </div>
-        </form>
-      </Panel>
-
-      <Panel title={`Clients (${clients.length})`}>
-        {loading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
-        ) : error ? (
-          <p className="text-sm text-red-400">{error}</p>
-        ) : clients.length === 0 ? (
-          <p className="text-sm text-slate-500">No clients yet.</p>
-        ) : (
-          <Table
-            headers={['Name', 'Business', 'Email', 'Phone', 'Status']}
-            rows={clients.map((c) => [
-              c.full_name,
-              c.business_name ?? '—',
-              c.email,
-              c.phone ?? '—',
-              c.status,
-            ])}
-          />
-        )}
-      </Panel>
+        </CardContent>
+      </Card>
     </div>
   );
 }

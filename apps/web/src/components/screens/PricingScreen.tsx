@@ -1,7 +1,10 @@
 'use client';
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { Button, Panel } from '@/components/ui';
+import { Check, Loader2, Save } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 import { apiGet, apiSend } from '@/lib/proxy-client';
 
 const LEAD_TYPES = ['SOLAR', 'SWEEPSTAKES', 'PAYDAY', 'HOMEOWNER'] as const;
@@ -56,7 +59,7 @@ export function PricingScreen() {
     setError(null);
     setSaved(false);
     try {
-      const payload = {
+      await apiSend('PUT', 'pricing/leads', {
         prices: LEAD_TYPES.flatMap((type) =>
           MODES.map((mode) => ({
             lead_type: type,
@@ -64,8 +67,7 @@ export function PricingScreen() {
             unit_price: prices[keyOf(type, mode)] ?? 0,
           })),
         ),
-      };
-      await apiSend('PUT', 'pricing/leads', payload);
+      });
       setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save prices');
@@ -75,60 +77,84 @@ export function PricingScreen() {
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-100">Lead Pricing</h1>
-        <p className="text-sm text-slate-500">
-          Unit price (USD) per lead type and delivery mode. Editable by SUPER_ADMIN.
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        eyebrow="Pricing"
+        title="Lead pricing"
+        description="Unit price (USD) per lead type and delivery mode. Editable by SUPER_ADMIN."
+      />
 
-      <Panel title="Price grid">
-        {loading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
-        ) : (
-          <form onSubmit={onSubmit} className="space-y-4">
-            <table className="text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-2 py-1 text-left">Lead type</th>
-                  {MODES.map((mode) => (
-                    <th key={mode} className="px-2 py-1 text-left">
-                      {mode}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {LEAD_TYPES.map((type) => (
-                  <tr key={type}>
-                    <td className="px-2 py-1.5 text-slate-300">{type}</td>
-                    {MODES.map((mode) => (
-                      <td key={mode} className="px-2 py-1.5">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={prices[keyOf(type, mode)] ?? 0}
-                          onChange={(e) => setPrice(type, mode, e.target.value)}
-                          className="w-28 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 outline-none focus:border-blue-500"
-                        />
-                      </td>
+      <Card>
+        <CardHeader>
+          <CardTitle>Price grid</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <form onSubmit={onSubmit} className="space-y-6">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <th className="px-3 py-2.5 text-left font-medium">Lead type</th>
+                      {MODES.map((mode) => (
+                        <th key={mode} className="px-3 py-2.5 text-left font-medium">
+                          {mode.toLowerCase()}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {LEAD_TYPES.map((type) => (
+                      <tr key={type} className="border-b border-border/60 last:border-b-0">
+                        <td className="px-3 py-3 font-medium capitalize">
+                          {type.toLowerCase()}
+                        </td>
+                        {MODES.map((mode) => (
+                          <td key={mode} className="px-3 py-3">
+                            <div className="relative w-32">
+                              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                                $
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={prices[keyOf(type, mode)] ?? 0}
+                                onChange={(e) => setPrice(type, mode, e.target.value)}
+                                className="h-9 w-full rounded-md border border-input bg-background pl-6 pr-2 text-sm tabular-nums shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                              />
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save prices'}
-              </Button>
-              {saved && <span className="text-sm text-emerald-400">Saved.</span>}
-              {error && <span className="text-sm text-red-400">{error}</span>}
-            </div>
-          </form>
-        )}
-      </Panel>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center gap-3 border-t border-border pt-4">
+                <Button type="submit" disabled={saving}>
+                  {saving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  {saving ? 'Saving…' : 'Save prices'}
+                </Button>
+                {saved && (
+                  <span className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
+                    <Check className="size-4" />
+                    Saved.
+                  </span>
+                )}
+                {error && <span className="text-sm text-destructive">{error}</span>}
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

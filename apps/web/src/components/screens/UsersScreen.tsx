@@ -1,7 +1,26 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
-import { Button, Input, Panel, Select, Table } from '@/components/ui';
+import { Mail } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Field, FormDialog } from '@/components/FormDialog';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 import { clean, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -15,99 +34,156 @@ interface UserRow {
   status: string;
 }
 
+const ROLE_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
+  SUPER_ADMIN: 'default',
+  ADMIN: 'secondary',
+  AGENT: 'outline',
+};
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  ACTIVE: 'default',
+  PENDING: 'outline',
+  SUSPENDED: 'destructive',
+  INACTIVE: 'secondary',
+};
+
 /** Staff management screen — SUPER_ADMIN / ADMIN. */
 export function UsersScreen({ role }: { role: string }) {
   const { data: users, loading, error, reload } = useResource<UserRow>('users');
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
   // An ADMIN cannot mint a SUPER_ADMIN.
-  const roleOptions = role === 'SUPER_ADMIN' ? ['SUPER_ADMIN', 'ADMIN', 'AGENT'] : ['ADMIN', 'AGENT'];
+  const roleOptions =
+    role === 'SUPER_ADMIN' ? ['SUPER_ADMIN', 'ADMIN', 'AGENT'] : ['ADMIN', 'AGENT'];
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const form = event.currentTarget;
+  async function onSubmit(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
-    setSaving(true);
-    setFormError(null);
-    try {
-      await apiSend(
-        'POST',
-        'users',
-        clean({
-          role: str(fd.get('role')),
-          full_name: str(fd.get('full_name')),
-          work_email: str(fd.get('work_email')),
-          password: str(fd.get('password')),
-          phone: opt(fd.get('phone')),
-          whatsapp: opt(fd.get('whatsapp')),
-          designation: opt(fd.get('designation')),
-          employee_id: opt(fd.get('employee_id')),
-          linkedin_url: opt(fd.get('linkedin_url')),
-        }),
-      );
-      form.reset();
-      await reload();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to create user');
-    } finally {
-      setSaving(false);
-    }
+    await apiSend(
+      'POST',
+      'users',
+      clean({
+        role: str(fd.get('role')),
+        full_name: str(fd.get('full_name')),
+        work_email: str(fd.get('work_email')),
+        password: str(fd.get('password')),
+        phone: opt(fd.get('phone')),
+        whatsapp: opt(fd.get('whatsapp')),
+        designation: opt(fd.get('designation')),
+        employee_id: opt(fd.get('employee_id')),
+        linkedin_url: opt(fd.get('linkedin_url')),
+      }),
+    );
+    await reload();
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-slate-100">Staff Users</h1>
-        <p className="text-sm text-slate-500">Onboard and manage internal staff, including agents.</p>
-      </header>
+    <div>
+      <PageHeader
+        eyebrow="Management"
+        title="Staff users"
+        description="Onboard and manage internal staff, including agents."
+        actions={
+          <FormDialog
+            triggerLabel="New user"
+            title="Onboard a staff member"
+            description="They'll receive their login credentials and can sign in immediately."
+            submitLabel="Create user"
+            onSubmit={onSubmit}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Role">
+                <Select name="role" defaultValue="AGENT">
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleOptions.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r.replace('_', ' ')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Full name">
+                <Input name="full_name" required />
+              </Field>
+              <Field label="Work email">
+                <Input name="work_email" type="email" required />
+              </Field>
+              <Field label="Password" hint="min 8 chars">
+                <Input name="password" type="password" minLength={8} required />
+              </Field>
+              <Field label="Phone">
+                <Input name="phone" />
+              </Field>
+              <Field label="WhatsApp">
+                <Input name="whatsapp" />
+              </Field>
+              <Field label="Designation">
+                <Input name="designation" />
+              </Field>
+              <Field label="Employee ID">
+                <Input name="employee_id" />
+              </Field>
+              <Field label="LinkedIn" className="sm:col-span-2">
+                <Input name="linkedin_url" type="url" placeholder="https://linkedin.com/in/…" />
+              </Field>
+            </div>
+          </FormDialog>
+        }
+      />
 
-      <Panel title="Onboard a staff member">
-        <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Select label="Role" name="role" defaultValue="AGENT" required>
-            {roleOptions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </Select>
-          <Input label="Full name" name="full_name" required />
-          <Input label="Work email" name="work_email" type="email" required />
-          <Input label="Password" name="password" type="password" minLength={8} required />
-          <Input label="Phone" name="phone" />
-          <Input label="WhatsApp" name="whatsapp" />
-          <Input label="Designation" name="designation" />
-          <Input label="Employee ID" name="employee_id" />
-          <Input label="LinkedIn URL" name="linkedin_url" />
-          <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Create user'}
-            </Button>
-            {formError && <span className="text-sm text-red-400">{formError}</span>}
-          </div>
-        </form>
-      </Panel>
-
-      <Panel title={`All staff (${users.length})`}>
-        {loading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
-        ) : error ? (
-          <p className="text-sm text-red-400">{error}</p>
-        ) : users.length === 0 ? (
-          <p className="text-sm text-slate-500">No staff users yet.</p>
-        ) : (
-          <Table
-            headers={['Name', 'Email', 'Role', 'Designation', 'Status']}
-            rows={users.map((u) => [
-              u.full_name,
-              u.work_email,
-              u.role,
-              u.designation ?? '—',
-              u.status,
-            ])}
-          />
-        )}
-      </Panel>
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="px-6 py-12 text-sm text-muted-foreground">Loading staff…</p>
+          ) : error ? (
+            <p className="px-6 py-12 text-sm text-destructive">{error}</p>
+          ) : users.length === 0 ? (
+            <p className="px-6 py-12 text-sm text-muted-foreground">No staff users yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Designation</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.full_name}</TableCell>
+                    <TableCell>
+                      <a
+                        href={`mailto:${u.work_email}`}
+                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        <Mail className="size-3.5" />
+                        {u.work_email}
+                      </a>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={ROLE_VARIANT[u.role] ?? 'outline'}>
+                        {u.role.replace('_', ' ').toLowerCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {u.designation ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[u.status] ?? 'outline'}>
+                        {u.status.toLowerCase()}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
