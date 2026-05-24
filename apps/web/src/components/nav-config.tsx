@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  Database,
   DollarSign,
   Globe,
   LayoutDashboard,
@@ -37,6 +38,7 @@ export const SUPER_ADMIN_NAV: NavSection[] = [
   {
     label: 'Operations',
     items: [
+      { href: '/super-admin/leads', label: 'Leads', icon: Database },
       { href: '/super-admin/orders', label: 'Orders', icon: ShoppingCart },
       { href: '/super-admin/replacements', label: 'Replacements', icon: RefreshCw },
     ],
@@ -67,6 +69,7 @@ export const ADMIN_NAV: NavSection[] = [
   {
     label: 'Operations',
     items: [
+      { href: '/admin/leads', label: 'Leads', icon: Database },
       { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
       { href: '/admin/replacements', label: 'Replacements', icon: RefreshCw },
     ],
