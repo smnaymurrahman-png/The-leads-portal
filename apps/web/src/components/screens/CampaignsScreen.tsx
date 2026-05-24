@@ -1,5 +1,7 @@
 'use client';
 
+import { Megaphone } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,8 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
 import { PageHeader } from '@/components/dashboard/PageHeader';
+import { TableSkeleton } from '@/components/skeletons';
 import { clean, num, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -63,6 +67,7 @@ export function CampaignsScreen({ role }: { role: string }) {
       }),
     );
     await reload();
+    toast.success('Campaign created');
   }
 
   return (
@@ -119,11 +124,19 @@ export function CampaignsScreen({ role }: { role: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">Loading campaigns…</p>
+            <TableSkeleton columns={5} rows={5} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : campaigns.length === 0 ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">No campaigns yet.</p>
+            <EmptyState
+              icon={Megaphone}
+              title="No campaigns yet"
+              description={
+                canManage
+                  ? 'Create a campaign to start tracking the ad spend that produced your leads.'
+                  : 'Campaigns appear here once a manager creates them.'
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

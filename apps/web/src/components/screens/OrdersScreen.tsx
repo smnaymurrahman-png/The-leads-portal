@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
+import { Check, ExternalLink, Loader2, RefreshCw, ShoppingCart, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,8 +22,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
+import { usePromptDialog } from '@/components/PromptDialog';
 import { PageHeader } from '@/components/dashboard/PageHeader';
+import { TableSkeleton } from '@/components/skeletons';
 import { clean, num, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -70,7 +74,7 @@ export function OrdersScreen({ role }: { role: string }) {
   const { data: orders, loading, error, reload } = useResource<OrderRow>('orders');
 
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [askReason, promptMount] = usePromptDialog();
 
   async function onCreate(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
@@ -93,25 +97,38 @@ export function OrdersScreen({ role }: { role: string }) {
       ...clean({ requirements: opt(fd.get('requirements')) }),
     });
     await reload();
+    toast.success('Order submitted for review');
   }
 
-  async function runAction(id: string, path: string, body: unknown): Promise<void> {
+  async function runAction(
+    id: string,
+    path: string,
+    body: unknown,
+    successMessage: string,
+  ): Promise<void> {
     setBusyId(id);
-    setActionError(null);
     try {
       await apiSend('POST', `orders/${id}/${path}`, body);
       await reload();
+      toast.success(successMessage);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Action failed');
+      toast.error(e instanceof Error ? e.message : 'Action failed');
     } finally {
       setBusyId(null);
     }
   }
 
-  function reject(id: string): void {
-    const note = window.prompt('Reason for rejecting this order:');
-    if (note && note.trim()) {
-      void runAction(id, 'reject', { reject_note: note.trim() });
+  async function reject(id: string): Promise<void> {
+    const note = await askReason({
+      title: 'Reject this order',
+      description: 'The client will see this note next to the rejected status.',
+      label: 'Reason',
+      placeholder: "Why is the order being rejected? (won't be sent without a note)",
+      confirmLabel: 'Reject order',
+      destructive: true,
+    });
+    if (note) {
+      await runAction(id, 'reject', { reject_note: note }, 'Order rejected');
     }
   }
 
@@ -123,7 +140,7 @@ export function OrdersScreen({ role }: { role: string }) {
             type="button"
             size="sm"
             disabled={busyId === order.id}
-            onClick={() => void runAction(order.id, 'accept', {})}
+            onClick={() => void runAction(order.id, 'accept', {}, 'Order accepted — client will be invoiced')}
           >
             {busyId === order.id ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -167,7 +184,9 @@ export function OrdersScreen({ role }: { role: string }) {
               size="sm"
               variant="outline"
               disabled={busyId === order.id}
-              onClick={() => void runAction(order.id, 'payment-link', {})}
+              onClick={() =>
+                void runAction(order.id, 'payment-link', {}, 'New payment link generated')
+              }
               aria-label="Regenerate payment link"
               title="Regenerate payment link"
             >
@@ -255,20 +274,26 @@ export function OrdersScreen({ role }: { role: string }) {
         }
       />
 
-      {actionError && (
-        <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {actionError}
-        </p>
-      )}
+      {promptMount}
 
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">Loading orders…</p>
+            <TableSkeleton columns={9} rows={6} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : orders.length === 0 ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">No orders yet.</p>
+            <EmptyState
+              icon={ShoppingCart}
+              title="No orders yet"
+              description={
+                isClient
+                  ? 'Place an order to start receiving leads. Submitted orders go through admin review.'
+                  : isDecider
+                    ? 'New order requests will land here for you to review.'
+                    : "Your clients' orders will appear here as they're placed."
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

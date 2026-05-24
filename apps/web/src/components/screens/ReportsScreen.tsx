@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/table';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { ChartSkeleton, StatGridSkeleton } from '@/components/skeletons';
 import { apiGet } from '@/lib/proxy-client';
 
 interface Dashboard {
@@ -153,10 +154,17 @@ export function ReportsScreen() {
 
   if (loading) {
     return (
-      <>
-        <PageHeader eyebrow="Reports" title="Loading…" />
-        <p className="text-sm text-muted-foreground">Fetching reports…</p>
-      </>
+      <div>
+        <PageHeader
+          eyebrow="Reports"
+          title="Revenue & operations"
+          description="Profit/loss, daily activity, agent commissions, and the live leads ledger."
+        />
+        <StatGridSkeleton count={4} />
+        <div className="mt-8 space-y-6">
+          <ChartSkeleton />
+        </div>
+      </div>
     );
   }
   if (error || !dashboard || !kpis) {
@@ -273,7 +281,7 @@ export function ReportsScreen() {
             <CardContent className="p-0">
               {commissions.length === 0 ? (
                 <p className="px-6 pb-6 text-sm text-muted-foreground">
-                  No commissions booked yet.
+                  No commissions booked yet — they're created when a delivered order is paid.
                 </p>
               ) : (
                 <Table>

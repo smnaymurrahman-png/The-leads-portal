@@ -1,7 +1,8 @@
 'use client';
 
-import { Check, Copy, ExternalLink } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,8 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
 import { PageHeader } from '@/components/dashboard/PageHeader';
+import { TableSkeleton } from '@/components/skeletons';
 import { clean, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -76,6 +79,7 @@ export function LandingPagesScreen({ role }: { role: string }) {
       ...(field_map ? { field_map } : {}),
     });
     await reload();
+    toast.success('Landing page created');
   }
 
   return (
@@ -147,11 +151,19 @@ export function LandingPagesScreen({ role }: { role: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">Loading landing pages…</p>
+            <TableSkeleton columns={5} rows={5} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : pages.length === 0 ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">No landing pages yet.</p>
+            <EmptyState
+              icon={Globe}
+              title="No landing pages yet"
+              description={
+                canManage
+                  ? 'Create your first landing page to start receiving signed lead intakes.'
+                  : 'Pages appear here once a manager publishes them.'
+              }
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -219,6 +231,7 @@ function SecretCell({ value }: { value: string }) {
         onClick={async () => {
           await navigator.clipboard.writeText(value);
           setCopied(true);
+          toast.success('Intake secret copied');
           setTimeout(() => setCopied(false), 1500);
         }}
         aria-label="Copy secret"

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, Loader2, RefreshCw, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,8 +21,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
+import { usePromptDialog } from '@/components/PromptDialog';
 import { PageHeader } from '@/components/dashboard/PageHeader';
+import { TableSkeleton } from '@/components/skeletons';
 import { apiGet, apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
 
@@ -67,8 +71,8 @@ export function ReplacementsScreen({ role }: { role: string }) {
   const [reasons, setReasons] = useState<string[]>([]);
   const [windowHours, setWindowHours] = useState<number | null>(null);
   const [deliveredLeads, setDeliveredLeads] = useState<DeliveredLead[]>([]);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [askReason, promptMount] = usePromptDialog();
 
   useEffect(() => {
     void (async () => {
@@ -99,22 +103,32 @@ export function ReplacementsScreen({ role }: { role: string }) {
       reason: fd.get('reason'),
     });
     await reload();
+    toast.success('Replacement request submitted');
   }
 
   async function review(id: string, action: 'approve' | 'deny'): Promise<void> {
     let body: unknown = {};
     if (action === 'deny') {
-      const note = window.prompt('Reason for denying this replacement:');
-      if (!note || !note.trim()) return;
-      body = { note: note.trim() };
+      const note = await askReason({
+        title: 'Deny this replacement',
+        description: 'The client will see this note next to the denied status.',
+        label: 'Reason',
+        placeholder: 'Why is the replacement being denied?',
+        confirmLabel: 'Deny replacement',
+        destructive: true,
+      });
+      if (!note) return;
+      body = { note };
     }
     setBusyId(id);
-    setActionError(null);
     try {
       await apiSend('POST', `replacements/${id}/${action}`, body);
       await reload();
+      toast.success(
+        action === 'approve' ? 'Replacement approved — fresh lead issued' : 'Replacement denied',
+      );
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Action failed');
+      toast.error(e instanceof Error ? e.message : 'Action failed');
     } finally {
       setBusyId(null);
     }
@@ -214,11 +228,7 @@ export function ReplacementsScreen({ role }: { role: string }) {
         }
       />
 
-      {actionError && (
-        <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {actionError}
-        </p>
-      )}
+      {promptMount}
 
       {isClient && deliveredLeads.length === 0 && (
         <p className="mb-4 text-sm text-muted-foreground">
@@ -229,11 +239,21 @@ export function ReplacementsScreen({ role }: { role: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">Loading replacements…</p>
+            <TableSkeleton columns={7} rows={5} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : rows.length === 0 ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">No replacements yet.</p>
+            <EmptyState
+              icon={RefreshCw}
+              title={isReviewer ? 'Nothing to review' : 'No replacements yet'}
+              description={
+                isClient
+                  ? 'Request a replacement on a delivered lead and it will show up here.'
+                  : isReviewer
+                    ? 'New replacement requests will appear here for your review.'
+                    : "Replacement requests from your clients will appear here."
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

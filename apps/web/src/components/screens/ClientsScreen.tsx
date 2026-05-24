@@ -1,5 +1,7 @@
 'use client';
 
+import { Building2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,8 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
 import { PageHeader } from '@/components/dashboard/PageHeader';
+import { TableSkeleton } from '@/components/skeletons';
 import { clean, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -68,6 +72,7 @@ export function ClientsScreen({ role }: { role: string }) {
       }),
     );
     await reload();
+    toast.success('Client created');
   }
 
   return (
@@ -136,11 +141,19 @@ export function ClientsScreen({ role }: { role: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">Loading clients…</p>
+            <TableSkeleton columns={5} rows={6} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : clients.length === 0 ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">No clients yet.</p>
+            <EmptyState
+              icon={Building2}
+              title="No clients yet"
+              description={
+                isStaff
+                  ? 'Use New client to create the first buyer account.'
+                  : 'You don\'t own any clients yet. Create one to start placing orders.'
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

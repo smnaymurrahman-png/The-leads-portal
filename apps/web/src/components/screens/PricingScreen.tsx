@@ -1,9 +1,11 @@
 'use client';
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { Check, Loader2, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { apiGet, apiSend } from '@/lib/proxy-client';
 
@@ -22,9 +24,8 @@ const keyOf = (type: string, mode: string): string => `${type}:${mode}`;
 export function PricingScreen() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -41,7 +42,7 @@ export function PricingScreen() {
         }
         setPrices(map);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load prices');
+        setLoadError(e instanceof Error ? e.message : 'Failed to load prices');
       } finally {
         setLoading(false);
       }
@@ -50,14 +51,11 @@ export function PricingScreen() {
 
   function setPrice(type: string, mode: string, value: string): void {
     setPrices((prev) => ({ ...prev, [keyOf(type, mode)]: Number(value) || 0 }));
-    setSaved(false);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSaving(true);
-    setError(null);
-    setSaved(false);
     try {
       await apiSend('PUT', 'pricing/leads', {
         prices: LEAD_TYPES.flatMap((type) =>
@@ -68,9 +66,9 @@ export function PricingScreen() {
           })),
         ),
       });
-      setSaved(true);
+      toast.success('Prices updated');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save prices');
+      toast.error(e instanceof Error ? e.message : 'Failed to save prices');
     } finally {
       setSaving(false);
     }
@@ -90,7 +88,14 @@ export function PricingScreen() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : loadError ? (
+            <p className="text-sm text-destructive">{loadError}</p>
           ) : (
             <form onSubmit={onSubmit} className="space-y-6">
               <div className="overflow-x-auto">
@@ -143,13 +148,6 @@ export function PricingScreen() {
                   )}
                   {saving ? 'Saving…' : 'Save prices'}
                 </Button>
-                {saved && (
-                  <span className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
-                    <Check className="size-4" />
-                    Saved.
-                  </span>
-                )}
-                {error && <span className="text-sm text-destructive">{error}</span>}
               </div>
             </form>
           )}

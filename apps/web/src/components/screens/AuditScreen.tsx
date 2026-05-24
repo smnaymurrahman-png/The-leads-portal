@@ -13,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/dashboard/PageHeader';
+import { TableSkeleton } from '@/components/skeletons';
 import { useResource } from '@/lib/use-resource';
 
 interface AuditRow {
@@ -96,19 +98,19 @@ export function AuditScreen() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="px-6 py-12 text-sm text-muted-foreground">Loading…</p>
+            <TableSkeleton columns={5} rows={8} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
-              <ScrollText className="size-8 text-muted-foreground" />
-              <p className="text-sm font-medium">No matching entries</p>
-              <p className="text-xs text-muted-foreground">
-                {query
-                  ? 'Try a different search, or clear the filter.'
-                  : 'Audited actions will appear here as they happen.'}
-              </p>
-            </div>
+            <EmptyState
+              icon={ScrollText}
+              title={query ? 'No matching entries' : 'Nothing audited yet'}
+              description={
+                query
+                  ? 'Try a different search, or clear the filter to see everything.'
+                  : 'Sensitive actions like order decisions, refunds and policy changes will appear here as they happen.'
+              }
+            />
           ) : (
             <Table>
               <TableHeader>

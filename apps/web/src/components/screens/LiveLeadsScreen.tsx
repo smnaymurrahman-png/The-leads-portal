@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { apiGet } from '@/lib/proxy-client';
 import { cn } from '@/lib/utils';
@@ -219,9 +220,8 @@ function LeadsTable({ rows, emptyMessage }: { rows: LeadItem[]; emptyMessage: st
   if (rows.length === 0) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
-          <Zap className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        <CardContent className="p-0">
+          <EmptyState icon={Zap} title="No leads here" description={emptyMessage} />
         </CardContent>
       </Card>
     );
