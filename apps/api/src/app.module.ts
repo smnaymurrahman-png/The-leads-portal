@@ -21,6 +21,7 @@ import { PricingModule } from './pricing/pricing.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReplacementsModule } from './replacements/replacements.module';
 import { RevenueModule } from './revenue/revenue.module';
+import { SuppressionModule } from './suppression/suppression.module';
 import { UsersModule } from './users/users.module';
 
 /**
@@ -69,6 +70,7 @@ import { UsersModule } from './users/users.module';
     AuditModule,
     RevenueModule,
     ApiKeysModule,
+    SuppressionModule,
   ],
 })
 export class AppModule {}

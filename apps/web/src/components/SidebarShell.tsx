@@ -38,11 +38,14 @@ export interface SessionLike {
  */
 export function SidebarShell({
   area,
+  profileHref,
   navSections,
   session,
   children,
 }: {
   area: string;
+  /** Path to this role's profile page — wraps the identity row in a link. */
+  profileHref: string;
   navSections: { label: string; items: NavLink[] }[];
   session: SessionLike;
   children: ReactNode;
@@ -90,7 +93,11 @@ export function SidebarShell({
         </SidebarContent>
 
         <SidebarFooter className="border-t">
-          <div className="flex items-center gap-2 px-2 py-2">
+          <Link
+            href={profileHref}
+            className="-mx-1 flex items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-accent/40"
+            title="Profile & password"
+          >
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-accent text-accent-foreground text-xs font-medium">
                 {initials || '··'}
@@ -100,7 +107,7 @@ export function SidebarShell({
               <span className="truncate text-sm font-medium">{session.name}</span>
               <span className="truncate text-xs text-muted-foreground">{session.email}</span>
             </div>
-          </div>
+          </Link>
         </SidebarFooter>
       </Sidebar>
 

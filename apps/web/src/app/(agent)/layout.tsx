@@ -11,7 +11,12 @@ export default async function AgentLayout({ children }: { children: ReactNode })
     redirect('/login');
   }
   return (
-    <SidebarShell area="Agent" navSections={AGENT_NAV} session={session}>
+    <SidebarShell
+      area="Agent"
+      profileHref="/agent/profile"
+      navSections={AGENT_NAV}
+      session={session}
+    >
       {children}
     </SidebarShell>
   );

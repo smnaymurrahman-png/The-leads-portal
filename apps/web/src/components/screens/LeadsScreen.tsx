@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/EmptyState';
+import { LeadDetailSheet } from '@/components/LeadDetailSheet';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { TableSkeleton } from '@/components/skeletons';
@@ -87,6 +88,7 @@ export function LeadsScreen() {
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [stateFilter, setStateFilter] = useState<string>('ALL');
   const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setRows(null);
@@ -238,7 +240,11 @@ export function LeadsScreen() {
               </TableHeader>
               <TableBody>
                 {filtered?.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow
+                    key={r.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setSelectedId(r.id)}
+                  >
                     <TableCell
                       className="text-xs text-muted-foreground tabular-nums"
                       title={new Date(r.capturedAt).toLocaleString()}
@@ -315,6 +321,12 @@ export function LeadsScreen() {
           )}
         </CardContent>
       </Card>
+
+      <LeadDetailSheet
+        leadId={selectedId}
+        open={selectedId !== null}
+        onOpenChange={(open) => !open && setSelectedId(null)}
+      />
     </div>
   );
 }

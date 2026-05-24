@@ -4,10 +4,12 @@ import {
   Database,
   DollarSign,
   Globe,
+  KeyRound,
   LayoutDashboard,
   Megaphone,
   RefreshCw,
   ScrollText,
+  ShieldOff,
   ShoppingCart,
   Users,
   Zap,
@@ -48,6 +50,13 @@ export const SUPER_ADMIN_NAV: NavSection[] = [
     items: [
       { href: '/super-admin/reports', label: 'Reports', icon: BarChart3 },
       { href: '/super-admin/audit', label: 'Audit', icon: ScrollText },
+    ],
+  },
+  {
+    label: 'Compliance & vault',
+    items: [
+      { href: '/super-admin/suppression', label: 'Suppression', icon: ShieldOff },
+      { href: '/super-admin/api-keys', label: 'API keys', icon: KeyRound },
     ],
   },
 ];

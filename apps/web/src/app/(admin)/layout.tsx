@@ -11,7 +11,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect('/login');
   }
   return (
-    <SidebarShell area="Admin" navSections={ADMIN_NAV} session={session}>
+    <SidebarShell
+      area="Admin"
+      profileHref="/admin/profile"
+      navSections={ADMIN_NAV}
+      session={session}
+    >
       {children}
     </SidebarShell>
   );

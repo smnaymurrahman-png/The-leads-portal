@@ -11,7 +11,12 @@ export default async function SuperAdminLayout({ children }: { children: ReactNo
     redirect('/login');
   }
   return (
-    <SidebarShell area="Super Admin" navSections={SUPER_ADMIN_NAV} session={session}>
+    <SidebarShell
+      area="Super Admin"
+      profileHref="/super-admin/profile"
+      navSections={SUPER_ADMIN_NAV}
+      session={session}
+    >
       {children}
     </SidebarShell>
   );

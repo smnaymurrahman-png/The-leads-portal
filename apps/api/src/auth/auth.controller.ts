@@ -3,6 +3,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService, type LoginResult } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import type { AuthPrincipal } from './types';
 
@@ -34,5 +35,21 @@ export class AuthController {
       scopeId: user.scopeId,
       kind: user.kind,
     };
+  }
+
+  /**
+   * Self-service password change. Any authenticated role can update their
+   * own credentials; the current password must be supplied so a stolen
+   * cookie alone can't rotate the password and lock the owner out.
+   * Throttled to 5 attempts/minute per IP.
+   */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changePassword(
+    @CurrentUser() actor: AuthPrincipal,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<void> {
+    await this.auth.changePassword(actor, dto.currentPassword, dto.newPassword);
   }
 }

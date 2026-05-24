@@ -11,7 +11,12 @@ export default async function ClientLayout({ children }: { children: ReactNode }
     redirect('/login');
   }
   return (
-    <SidebarShell area="Client" navSections={CLIENT_NAV} session={session}>
+    <SidebarShell
+      area="Client"
+      profileHref="/client/profile"
+      navSections={CLIENT_NAV}
+      session={session}
+    >
       {children}
     </SidebarShell>
   );
