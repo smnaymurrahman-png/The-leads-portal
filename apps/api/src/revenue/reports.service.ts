@@ -119,6 +119,65 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Daily activity series for the last `days` calendar days (UTC).
+   * One row per day with charges (succeeded $ that day), orders created and
+   * leads captured — backs the dashboard trend chart.
+   */
+  async series(days = 14) {
+    const span = Math.min(Math.max(days, 1), 90);
+    const end = new Date();
+    end.setUTCHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - (span - 1));
+
+    const [charges, orders, leads] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where: {
+          type: TxnType.CHARGE,
+          status: TxnStatus.SUCCEEDED,
+          created_at: { gte: start },
+        },
+        select: { created_at: true, amount: true },
+      }),
+      this.prisma.order.findMany({
+        where: { created_at: { gte: start } },
+        select: { created_at: true },
+      }),
+      this.prisma.lead.findMany({
+        where: { captured_at: { gte: start } },
+        select: { captured_at: true },
+      }),
+    ]);
+
+    const dayKey = (d: Date): string => d.toISOString().slice(0, 10);
+    const bucket: Record<string, { charges: number; orders: number; leads: number }> = {};
+    for (let offset = 0; offset < span; offset++) {
+      const day = new Date(start);
+      day.setUTCDate(start.getUTCDate() + offset);
+      bucket[dayKey(day)] = { charges: 0, orders: 0, leads: 0 };
+    }
+    for (const c of charges) {
+      const key = dayKey(c.created_at);
+      if (bucket[key]) bucket[key].charges += toNumber(c.amount);
+    }
+    for (const o of orders) {
+      const key = dayKey(o.created_at);
+      if (bucket[key]) bucket[key].orders += 1;
+    }
+    for (const l of leads) {
+      const key = dayKey(l.captured_at);
+      if (bucket[key]) bucket[key].leads += 1;
+    }
+
+    return Object.entries(bucket).map(([date, v]) => ({
+      date,
+      charges: Number(v.charges.toFixed(2)),
+      orders: v.orders,
+      leads: v.leads,
+    }));
+  }
+
   /** Leads ledger — recent leads with state and assignment count. */
   async leadsLedger(limit = 100) {
     const leads = await this.prisma.lead.findMany({

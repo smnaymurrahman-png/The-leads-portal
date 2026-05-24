@@ -23,4 +23,9 @@ export class ReportsController {
   leadsLedger(@Query('limit') limit?: string) {
     return this.reports.leadsLedger(limit ? Number(limit) : undefined);
   }
+
+  @Get('series')
+  series(@Query('days') days?: string) {
+    return this.reports.series(days ? Number(days) : undefined);
+  }
 }

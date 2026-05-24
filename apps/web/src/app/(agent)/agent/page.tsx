@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { RoleDashboard } from '@/components/RoleDashboard';
+import { AgentDashboard } from '@/components/dashboard/AgentDashboard';
 import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -9,5 +9,5 @@ export default async function AgentPage() {
   if (!session) {
     redirect('/login');
   }
-  return <RoleDashboard area="Agent" session={session} />;
+  return <AgentDashboard session={session} />;
 }

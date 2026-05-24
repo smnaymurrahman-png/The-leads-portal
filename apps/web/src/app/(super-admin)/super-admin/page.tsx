@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { RoleDashboard } from '@/components/RoleDashboard';
+import { SuperAdminDashboard } from '@/components/dashboard/SuperAdminDashboard';
 import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -9,5 +9,5 @@ export default async function SuperAdminPage() {
   if (!session) {
     redirect('/login');
   }
-  return <RoleDashboard area="Super Admin" session={session} />;
+  return <SuperAdminDashboard session={session} />;
 }

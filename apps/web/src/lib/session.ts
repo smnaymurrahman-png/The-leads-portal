@@ -35,3 +35,23 @@ export async function getSession(): Promise<Session | null> {
     return null;
   }
 }
+
+/**
+ * Server-side: GETs `<API_URL>/<path>` with the caller's bearer token from
+ * cookies. Returns null on any failure so the page can render a partial
+ * state instead of erroring out.
+ */
+export async function serverApiGet<T>(path: string): Promise<T | null> {
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API_URL}/${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
