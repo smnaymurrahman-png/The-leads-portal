@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { io, type Socket } from 'socket.io-client';
-import { Bell, Phone, Wifi, WifiOff, Zap } from 'lucide-react';
+import { Phone, Wifi, WifiOff, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,27 +14,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/EmptyState';
+import {
+  type ConnectionStatus,
+  type LiveLeadItem,
+  useNotifications,
+} from '@/components/NotificationsProvider';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { apiGet } from '@/lib/proxy-client';
 import { cn } from '@/lib/utils';
-
-interface LeadItem {
-  assignmentId: string;
-  publicLeadId: string;
-  leadType: string;
-  fullName: string | null;
-  email: string | null;
-  phone: string | null;
-  state: string | null;
-  createdAt: string;
-  deliveryStatus: string;
-}
-
-type ConnectionStatus = 'connecting' | 'live' | 'offline';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
-/** Socket.IO attaches to the API origin, not the `/api` REST prefix. */
-const SOCKET_ORIGIN = API_URL.replace(/\/api\/?$/, '');
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   DELIVERED: 'default',
@@ -57,73 +43,27 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * Client-side live feed. The Socket.IO connection itself is owned by the
+ * app-wide NotificationsProvider so the bell stays accurate even when the
+ * user navigates away — this screen just seeds and reads from that store.
+ */
 export function LiveLeadsScreen() {
-  const [leads, setLeads] = useState<LeadItem[]>([]);
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const { liveLeads, seedLiveLeads, status } = useNotifications();
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    let socket: Socket | null = null;
-
-    async function start(): Promise<void> {
+    void (async () => {
       try {
-        const initial = await apiGet<LeadItem[]>('leads/mine');
-        if (!cancelled) setLeads(initial);
+        const initial = await apiGet<LiveLeadItem[]>('leads/mine');
+        seedLiveLeads(initial);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load leads');
+        setError(e instanceof Error ? e.message : 'Failed to load leads');
       }
+    })();
+  }, [seedLiveLeads]);
 
-      let token: string;
-      try {
-        const res = await fetch('/api/auth/socket-token');
-        if (!res.ok) throw new Error('socket token request failed');
-        token = ((await res.json()) as { token: string }).token;
-      } catch {
-        if (!cancelled) setStatus('offline');
-        return;
-      }
-      if (cancelled) return;
-
-      socket = io(SOCKET_ORIGIN, { auth: { token }, transports: ['websocket', 'polling'] });
-
-      socket.on('connect', () => setStatus('live'));
-      socket.on('disconnect', () => setStatus('offline'));
-      socket.on('connect_error', () => setStatus('offline'));
-      socket.on('unauthorized', (payload: { message?: string }) => {
-        setStatus('offline');
-        setError(payload?.message ?? 'Socket authentication rejected');
-      });
-
-      // A delivered lead — acknowledge receipt, then prepend to the feed.
-      socket.on('lead.delivered', (payload: LeadItem, ack?: (response: unknown) => void) => {
-        if (typeof ack === 'function') {
-          ack({ received: true }); // confirms delivery → server marks DELIVERED
-        }
-        setLeads((prev) =>
-          prev.some((lead) => lead.assignmentId === payload.assignmentId)
-            ? prev
-            : [{ ...payload, deliveryStatus: 'DELIVERED' }, ...prev],
-        );
-      });
-
-      socket.on('payment.paid', (payload: { publicOrderId?: string }) => {
-        setNotice(`Payment received for order ${payload?.publicOrderId ?? ''}`);
-      });
-      socket.on('order.status_changed', (payload: { publicOrderId?: string; status?: string }) => {
-        setNotice(`Order ${payload?.publicOrderId ?? ''} is now ${payload?.status ?? 'updated'}`);
-      });
-    }
-
-    void start();
-    return () => {
-      cancelled = true;
-      socket?.disconnect();
-    };
-  }, []);
-
-  const today = leads.filter((lead) => isToday(lead.createdAt));
+  const today = liveLeads.filter((lead) => isToday(lead.createdAt));
 
   return (
     <div>
@@ -134,12 +74,6 @@ export function LiveLeadsScreen() {
         actions={<ConnectionPill status={status} />}
       />
 
-      {notice && (
-        <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
-          <Bell className="size-4 text-primary" />
-          {notice}
-        </div>
-      )}
       {error && (
         <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
@@ -154,7 +88,7 @@ export function LiveLeadsScreen() {
           </TabsTrigger>
           <TabsTrigger value="all">
             All leads
-            <span className="ml-1 text-xs text-muted-foreground">({leads.length})</span>
+            <span className="ml-1 text-xs text-muted-foreground">({liveLeads.length})</span>
           </TabsTrigger>
         </TabsList>
 
@@ -163,7 +97,7 @@ export function LiveLeadsScreen() {
         </TabsContent>
         <TabsContent value="all">
           <LeadsTable
-            rows={leads}
+            rows={liveLeads}
             emptyMessage="No leads delivered yet — they appear here instantly."
           />
         </TabsContent>
@@ -216,7 +150,7 @@ function ConnectionPill({ status }: { status: ConnectionStatus }) {
   );
 }
 
-function LeadsTable({ rows, emptyMessage }: { rows: LeadItem[]; emptyMessage: string }) {
+function LeadsTable({ rows, emptyMessage }: { rows: LiveLeadItem[]; emptyMessage: string }) {
   if (rows.length === 0) {
     return (
       <Card>

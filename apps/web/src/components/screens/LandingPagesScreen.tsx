@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { BulkImportDialog } from '@/components/BulkImportDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
 import { PageHeader } from '@/components/dashboard/PageHeader';
@@ -47,6 +48,7 @@ interface LandingRow {
   web_link: string | null;
   status: string;
   intake_secret: string;
+  field_map?: Record<string, unknown> | null;
 }
 
 /** Landing pages. All staff can view; ADMIN/SUPER_ADMIN can create. */
@@ -173,6 +175,7 @@ export function LandingPagesScreen({ role }: { role: string }) {
                   <TableHead>Status</TableHead>
                   <TableHead>Web link</TableHead>
                   <TableHead>Intake secret</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -207,6 +210,11 @@ export function LandingPagesScreen({ role }: { role: string }) {
                     <TableCell>
                       <SecretCell value={p.intake_secret} />
                     </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <BulkImportDialog landingPage={p} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

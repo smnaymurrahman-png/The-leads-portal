@@ -49,6 +49,8 @@ export interface IntakeResult {
   rejectReason: RejectReason | null;
   /** True when this was a retried webhook and no new lead was created. */
   idempotent: boolean;
+  /** Surface an unexpected error from bulk processing — undefined on the webhook path. */
+  error?: string;
 }
 
 @Injectable()
@@ -76,7 +78,42 @@ export class IntakeService {
       throw new UnauthorizedException('Invalid or missing intake signature');
     }
 
-    // Step 0 — idempotency: a retried webhook must not create a second lead.
+    return this.processOne(page, dto);
+  }
+
+  /**
+   * Authenticated bulk intake — runs N rows through the same normalisation
+   * pipeline as the webhook, skipping HMAC because the caller is already
+   * proven via JWT (RBAC enforces SUPER_ADMIN / ADMIN at the controller).
+   * Returns per-row results so the UI can show created / duplicate / rejected.
+   */
+  async ingestBulk(landingPageId: string, rows: IntakeLeadDto[]): Promise<IntakeResult[]> {
+    const page = await this.prisma.landingPage.findUnique({ where: { id: landingPageId } });
+    if (!page) {
+      throw new NotFoundException('Landing page not found');
+    }
+    const results: IntakeResult[] = [];
+    for (const row of rows) {
+      // Failed rows shouldn't abort the batch — surface them in the response.
+      try {
+        results.push(await this.processOne(page, row));
+      } catch (error) {
+        results.push({
+          leadId: '',
+          publicLeadId: '',
+          state: LeadState.REJECTED,
+          rejectReason: RejectReason.INVALID_FORMAT,
+          idempotent: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+    return results;
+  }
+
+  /** Steps 3–9 of the pipeline: idempotency, normalise, evaluate, persist. */
+  private async processOne(page: LandingPage, dto: IntakeLeadDto): Promise<IntakeResult> {
+    // Step 0 — idempotency: a retried submission must not create a second lead.
     const existing = await this.prisma.lead.findUnique({
       where: { submission_id: dto.submission_id },
     });

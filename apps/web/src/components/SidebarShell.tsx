@@ -18,6 +18,8 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { LogoutButton } from './LogoutButton';
+import { NotificationsBell } from './NotificationsBell';
+import { NotificationsProvider } from './NotificationsProvider';
 
 export interface NavLink {
   href: string;
@@ -58,6 +60,7 @@ export function SidebarShell({
     .toUpperCase();
 
   return (
+    <NotificationsProvider>
     <SidebarProvider>
       <Sidebar collapsible="icon" className="border-r">
         <SidebarHeader className="border-b">
@@ -117,7 +120,10 @@ export function SidebarShell({
           <Separator orientation="vertical" className="mr-2 h-5" />
           <div className="flex flex-1 items-center justify-between">
             <span className="text-sm font-medium text-muted-foreground">{area}</span>
-            <LogoutButton />
+            <div className="flex items-center gap-1">
+              <NotificationsBell />
+              <LogoutButton />
+            </div>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">
@@ -125,5 +131,6 @@ export function SidebarShell({
         </main>
       </SidebarInset>
     </SidebarProvider>
+    </NotificationsProvider>
   );
 }
