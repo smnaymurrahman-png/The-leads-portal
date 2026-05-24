@@ -1,14 +1,39 @@
 import { LoginForm } from '@/components/LoginForm';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
   return (
-    <div className="w-full max-w-sm px-6">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Leads Portal</p>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-100">Sign in</h1>
-      <p className="mt-1 text-sm text-slate-400">Use a seeded account — staff or client.</p>
-      <LoginForm />
+    <div className="w-full max-w-md">
+      <div className="mb-6 flex items-center justify-center gap-2">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-sm">
+          LP
+        </span>
+        <span className="text-base font-semibold tracking-tight">Leads Portal</span>
+      </div>
+
+      <Card className="shadow-xl">
+        <CardHeader className="space-y-1.5 text-center">
+          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardDescription>
+            Sign in with a staff or client account to continue.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LoginForm />
+        </CardContent>
+      </Card>
+
+      <p className="mt-6 text-center text-xs text-muted-foreground">
+        Trouble signing in? Ask your administrator to reset your password.
+      </p>
     </div>
   );
 }

@@ -1,21 +1,18 @@
 import type { ReactNode } from 'react';
-import { AreaShell } from '@/components/AreaShell';
+import { redirect } from 'next/navigation';
+import { SidebarShell } from '@/components/SidebarShell';
+import { AGENT_NAV } from '@/components/nav-config';
+import { getSession } from '@/lib/session';
 
 /** Layout for the Agent area — agents manage their own clients. */
-export default function AgentLayout({ children }: { children: ReactNode }) {
+export default async function AgentLayout({ children }: { children: ReactNode }) {
+  const session = await getSession();
+  if (!session) {
+    redirect('/login');
+  }
   return (
-    <AreaShell
-      area="Agent"
-      links={[
-        { href: '/agent', label: 'Dashboard' },
-        { href: '/agent/clients', label: 'My Clients' },
-        { href: '/agent/campaigns', label: 'Campaigns' },
-        { href: '/agent/landing-pages', label: 'Landing Pages' },
-        { href: '/agent/orders', label: 'Orders' },
-        { href: '/agent/replacements', label: 'Replacements' },
-      ]}
-    >
+    <SidebarShell area="Agent" navSections={AGENT_NAV} session={session}>
       {children}
-    </AreaShell>
+    </SidebarShell>
   );
 }

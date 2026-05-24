@@ -1,23 +1,18 @@
 import type { ReactNode } from 'react';
-import { AreaShell } from '@/components/AreaShell';
+import { redirect } from 'next/navigation';
+import { SidebarShell } from '@/components/SidebarShell';
+import { ADMIN_NAV } from '@/components/nav-config';
+import { getSession } from '@/lib/session';
 
 /** Layout for the Admin area. */
-export default function AdminLayout({ children }: { children: ReactNode }) {
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  const session = await getSession();
+  if (!session) {
+    redirect('/login');
+  }
   return (
-    <AreaShell
-      area="Admin"
-      links={[
-        { href: '/admin', label: 'Dashboard' },
-        { href: '/admin/users', label: 'Users' },
-        { href: '/admin/clients', label: 'Clients' },
-        { href: '/admin/campaigns', label: 'Campaigns' },
-        { href: '/admin/landing-pages', label: 'Landing Pages' },
-        { href: '/admin/orders', label: 'Orders' },
-        { href: '/admin/replacements', label: 'Replacements' },
-        { href: '/admin/reports', label: 'Reports' },
-      ]}
-    >
+    <SidebarShell area="Admin" navSections={ADMIN_NAV} session={session}>
       {children}
-    </AreaShell>
+    </SidebarShell>
   );
 }

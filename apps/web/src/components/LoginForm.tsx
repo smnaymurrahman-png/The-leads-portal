@@ -2,6 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 /** Role → dashboard path. Kept local so this Client Component never imports
  *  the server-only auth lib (which would leak `jose` / JWT_SECRET handling). */
@@ -11,10 +15,6 @@ const ROLE_HOME: Record<string, string> = {
   AGENT: '/agent',
   CLIENT: '/client',
 };
-
-const fieldClass =
-  'mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 ' +
-  'text-slate-100 outline-none focus:border-blue-500';
 
 export function LoginForm() {
   const router = useRouter();
@@ -48,43 +48,49 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-6 space-y-4">
-      <div>
-        <label htmlFor="email" className="block text-sm text-slate-300">
-          Email
-        </label>
-        <input
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
           id="email"
           type="email"
+          placeholder="you@company.com"
           required
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className={fieldClass}
         />
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm text-slate-300">
-          Password
-        </label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
           id="password"
           type="password"
+          placeholder="••••••••"
           required
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className={fieldClass}
         />
       </div>
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-      >
-        {pending ? 'Signing in…' : 'Sign in'}
-      </button>
+
+      {error && (
+        <p className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
+
+      <Button type="submit" disabled={pending} className="w-full">
+        {pending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          'Sign in'
+        )}
+      </Button>
     </form>
   );
 }

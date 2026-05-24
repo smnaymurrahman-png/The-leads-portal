@@ -1,25 +1,18 @@
 import type { ReactNode } from 'react';
-import { AreaShell } from '@/components/AreaShell';
+import { redirect } from 'next/navigation';
+import { SidebarShell } from '@/components/SidebarShell';
+import { SUPER_ADMIN_NAV } from '@/components/nav-config';
+import { getSession } from '@/lib/session';
 
 /** Layout for the Super Admin area — full management navigation. */
-export default function SuperAdminLayout({ children }: { children: ReactNode }) {
+export default async function SuperAdminLayout({ children }: { children: ReactNode }) {
+  const session = await getSession();
+  if (!session) {
+    redirect('/login');
+  }
   return (
-    <AreaShell
-      area="Super Admin"
-      links={[
-        { href: '/super-admin', label: 'Dashboard' },
-        { href: '/super-admin/users', label: 'Users' },
-        { href: '/super-admin/clients', label: 'Clients' },
-        { href: '/super-admin/campaigns', label: 'Campaigns' },
-        { href: '/super-admin/landing-pages', label: 'Landing Pages' },
-        { href: '/super-admin/pricing', label: 'Pricing' },
-        { href: '/super-admin/orders', label: 'Orders' },
-        { href: '/super-admin/replacements', label: 'Replacements' },
-        { href: '/super-admin/reports', label: 'Reports' },
-        { href: '/super-admin/audit', label: 'Audit' },
-      ]}
-    >
+    <SidebarShell area="Super Admin" navSections={SUPER_ADMIN_NAV} session={session}>
       {children}
-    </AreaShell>
+    </SidebarShell>
   );
 }

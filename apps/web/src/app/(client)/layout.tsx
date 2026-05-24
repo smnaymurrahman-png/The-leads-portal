@@ -1,19 +1,18 @@
 import type { ReactNode } from 'react';
-import { AreaShell } from '@/components/AreaShell';
+import { redirect } from 'next/navigation';
+import { SidebarShell } from '@/components/SidebarShell';
+import { CLIENT_NAV } from '@/components/nav-config';
+import { getSession } from '@/lib/session';
 
 /** Layout for the Client area. */
-export default function ClientLayout({ children }: { children: ReactNode }) {
+export default async function ClientLayout({ children }: { children: ReactNode }) {
+  const session = await getSession();
+  if (!session) {
+    redirect('/login');
+  }
   return (
-    <AreaShell
-      area="Client"
-      links={[
-        { href: '/client', label: 'Dashboard' },
-        { href: '/client/orders', label: 'Orders' },
-        { href: '/client/leads', label: 'Live Leads' },
-        { href: '/client/replacements', label: 'Replacements' },
-      ]}
-    >
+    <SidebarShell area="Client" navSections={CLIENT_NAV} session={session}>
       {children}
-    </AreaShell>
+    </SidebarShell>
   );
 }
