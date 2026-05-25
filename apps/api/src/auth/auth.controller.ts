@@ -1,10 +1,20 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService, type LoginResult } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import type { AuthPrincipal } from './types';
 
 @Controller('auth')
@@ -51,5 +61,21 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ): Promise<void> {
     await this.auth.changePassword(actor, dto.currentPassword, dto.newPassword);
+  }
+
+  /**
+   * Full editable profile — phone, whatsapp, role-specific fields. Pulled
+   * separately from /auth/me so that lean endpoint stays cheap (it's called
+   * by every authenticated page load via getSession()).
+   */
+  @Get('me/profile')
+  fullProfile(@CurrentUser() actor: AuthPrincipal) {
+    return this.auth.fullProfile(actor);
+  }
+
+  /** Self-service profile edit — name, phone, role-specific fields. */
+  @Patch('me')
+  updateProfile(@CurrentUser() actor: AuthPrincipal, @Body() dto: UpdateProfileDto) {
+    return this.auth.updateProfile(actor, dto);
   }
 }
