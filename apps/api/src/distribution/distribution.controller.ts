@@ -74,4 +74,15 @@ export class DistributionController {
   redistribute(@Param('leadId', ParseUUIDPipe) leadId: string) {
     return this.distribution.distribute(leadId);
   }
+
+  /**
+   * Sweep the entire UNSOLD_POOL and try to match each lead against current
+   * eligible orders. Useful after onboarding new orders or after adjusting
+   * criteria — leads captured pre-order get a second chance.
+   */
+  @Post('match-pool')
+  @HttpCode(HttpStatus.OK)
+  matchPool() {
+    return this.distribution.matchPool();
+  }
 }

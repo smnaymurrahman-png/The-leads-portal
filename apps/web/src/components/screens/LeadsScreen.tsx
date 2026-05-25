@@ -1,9 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Database, Mail, Phone } from 'lucide-react';
+import {
+  Database,
+  Eye,
+  Loader2,
+  Mail,
+  Phone,
+  RefreshCw,
+  UserPlus,
+  X,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -20,12 +39,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { AssignLeadDialog } from '@/components/AssignLeadDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { LeadDetailSheet } from '@/components/LeadDetailSheet';
+import { MoreHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { TableSkeleton } from '@/components/skeletons';
-import { apiGet } from '@/lib/proxy-client';
+import { apiGet, apiSend } from '@/lib/proxy-client';
 
 interface LeadRow {
   id: string;
@@ -89,6 +110,11 @@ export function LeadsScreen() {
   const [stateFilter, setStateFilter] = useState<string>('ALL');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Per-row selection — only UNSOLD_POOL leads are selectable for assign. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** When non-null, AssignLeadDialog is open targeting these leads. */
+  const [assignTarget, setAssignTarget] = useState<LeadRow[] | null>(null);
+  const [rematchBusy, setRematchBusy] = useState(false);
 
   const load = useCallback(async () => {
     setRows(null);
@@ -123,6 +149,71 @@ export function LeadsScreen() {
     );
   }, [rows, query]);
 
+  // Eligible leads for the bulk-assign action — only those still in the pool.
+  const assignable = useMemo(
+    () => (filtered ?? []).filter((r) => r.state === 'UNSOLD_POOL' && selected.has(r.id)),
+    [filtered, selected],
+  );
+  const poolInView = useMemo(
+    () => (filtered ?? []).filter((r) => r.state === 'UNSOLD_POOL'),
+    [filtered],
+  );
+  const allPoolChecked =
+    poolInView.length > 0 && poolInView.every((r) => selected.has(r.id));
+  const somePoolChecked = poolInView.some((r) => selected.has(r.id)) && !allPoolChecked;
+
+  function toggleAllPool(checked: boolean): void {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const r of poolInView) {
+        if (checked) next.add(r.id);
+        else next.delete(r.id);
+      }
+      return next;
+    });
+  }
+
+  function toggleOne(id: string): void {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** Auto-rematch — sweeps the UNSOLD_POOL against current orders. */
+  async function matchPool(): Promise<void> {
+    setRematchBusy(true);
+    try {
+      const result = await apiSend<{
+        scanned: number;
+        assigned: number;
+        stillUnsold: number;
+        assignmentCount: number;
+      }>('POST', 'distribution/match-pool', {});
+      await load();
+      toast.success(
+        `Scanned ${result.scanned} pooled lead${result.scanned === 1 ? '' : 's'}: ${result.assigned} assigned (${result.assignmentCount} assignment${result.assignmentCount === 1 ? '' : 's'}), ${result.stillUnsold} still unsold.`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Pool rematch failed');
+    } finally {
+      setRematchBusy(false);
+    }
+  }
+
+  /** Re-run the auto matcher for a single lead — useful after editing orders. */
+  async function redistributeOne(lead: LeadRow): Promise<void> {
+    try {
+      await apiSend('POST', `distribution/leads/${lead.id}/distribute`, {});
+      await load();
+      toast.success(`Redistribution attempted for ${lead.publicLeadId}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Redistribute failed');
+    }
+  }
+
   // Summary tiles use the *unfiltered* rows so they describe what's actually
   // in the system, not the current search subset.
   const totals = useMemo(() => {
@@ -141,6 +232,23 @@ export function LeadsScreen() {
         eyebrow="Operations"
         title="Leads"
         description="Every lead captured through your landing pages — ready to sell, delivered, or rejected."
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={matchPool}
+            disabled={rematchBusy}
+            title="Re-run the auto matcher against every UNSOLD_POOL lead"
+          >
+            {rematchBusy ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            Match unsold pool
+          </Button>
+        }
       />
 
       {totals && (
@@ -208,10 +316,42 @@ export function LeadsScreen() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+          <span className="font-medium text-foreground">
+            {selected.size} selected
+            {assignable.length < selected.size && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                ({assignable.length} eligible for assign)
+              </span>
+            )}
+          </span>
+          <span className="flex-1" />
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setAssignTarget(assignable)}
+            disabled={assignable.length === 0}
+          >
+            <UserPlus className="size-3.5" />
+            Assign to order…
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setSelected(new Set())}
+            aria-label="Clear selection"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {rows === null ? (
-            <TableSkeleton columns={8} rows={8} />
+            <TableSkeleton columns={9} rows={8} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : filtered && filtered.length === 0 ? (
@@ -228,6 +368,15 @@ export function LeadsScreen() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allPoolChecked}
+                      indeterminate={somePoolChecked}
+                      onCheckedChange={(c) => toggleAllPool(c === true)}
+                      aria-label="Select all unsold-pool leads in view"
+                      disabled={poolInView.length === 0}
+                    />
+                  </TableHead>
                   <TableHead>Captured</TableHead>
                   <TableHead>Lead</TableHead>
                   <TableHead>Type</TableHead>
@@ -236,22 +385,37 @@ export function LeadsScreen() {
                   <TableHead>Geo</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>Recipient</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered?.map((r) => (
                   <TableRow
                     key={r.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => setSelectedId(r.id)}
+                    data-state={selected.has(r.id) ? 'selected' : undefined}
+                    className="group"
                   >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selected.has(r.id)}
+                        onCheckedChange={() => toggleOne(r.id)}
+                        disabled={r.state !== 'UNSOLD_POOL'}
+                        aria-label={`Select ${r.publicLeadId}`}
+                      />
+                    </TableCell>
                     <TableCell
-                      className="text-xs text-muted-foreground tabular-nums"
+                      className="cursor-pointer text-xs text-muted-foreground tabular-nums hover:text-foreground"
                       title={new Date(r.capturedAt).toLocaleString()}
+                      onClick={() => setSelectedId(r.id)}
                     >
                       {formatTime(r.capturedAt)}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{r.publicLeadId}</TableCell>
+                    <TableCell
+                      className="cursor-pointer font-mono text-xs hover:text-primary"
+                      onClick={() => setSelectedId(r.id)}
+                    >
+                      {r.publicLeadId}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={LEAD_TYPE_VARIANT[r.leadType] ?? 'outline'}>
                         {r.leadType.toLowerCase()}
@@ -314,6 +478,45 @@ export function LeadsScreen() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Lead actions"
+                            />
+                          }
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuItem onClick={() => setSelectedId(r.id)}>
+                            <Eye className="size-3.5" />
+                            View detail
+                          </DropdownMenuItem>
+                          {r.state === 'UNSOLD_POOL' && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => setAssignTarget([r])}
+                              >
+                                <UserPlus className="size-3.5" />
+                                Assign to order…
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => void redistributeOne(r)}
+                              >
+                                <RefreshCw className="size-3.5" />
+                                Re-run auto match
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -326,6 +529,23 @@ export function LeadsScreen() {
         leadId={selectedId}
         open={selectedId !== null}
         onOpenChange={(open) => !open && setSelectedId(null)}
+      />
+
+      <AssignLeadDialog
+        open={assignTarget !== null}
+        onOpenChange={(o) => !o && setAssignTarget(null)}
+        leads={
+          assignTarget?.map((r) => ({
+            id: r.id,
+            publicLeadId: r.publicLeadId,
+            leadType: r.leadType,
+            fullName: r.fullName,
+          })) ?? []
+        }
+        onDone={() => {
+          setSelected(new Set());
+          void load();
+        }}
       />
     </div>
   );

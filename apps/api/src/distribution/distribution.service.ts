@@ -83,6 +83,46 @@ export class DistributionService {
     private readonly events: EventEmitter2,
   ) {}
 
+  /**
+   * Batch rescan — runs the matching algorithm against every lead currently
+   * sitting in the UNSOLD_POOL. Used by the Leads page "Match unsold pool"
+   * button to recover leads that were captured before a matching order
+   * existed. Returns a summary so the caller can render "X assigned, Y still
+   * in pool".
+   */
+  async matchPool(): Promise<{
+    scanned: number;
+    assigned: number;
+    stillUnsold: number;
+    assignmentCount: number;
+  }> {
+    const pending = await this.prisma.lead.findMany({
+      where: { lead_state: LeadState.UNSOLD_POOL },
+      select: { id: true },
+      orderBy: { captured_at: 'asc' },
+    });
+
+    let assigned = 0;
+    let stillUnsold = 0;
+    let assignmentCount = 0;
+    for (const { id } of pending) {
+      try {
+        const result = await this.distribute(id);
+        if (result.assignmentCount > 0) {
+          assigned += 1;
+          assignmentCount += result.assignmentCount;
+        } else {
+          stillUnsold += 1;
+        }
+      } catch (error) {
+        this.logger.error(`Pool rescan failed for lead ${id}`, error as Error);
+        stillUnsold += 1;
+      }
+    }
+
+    return { scanned: pending.length, assigned, stillUnsold, assignmentCount };
+  }
+
   /** Auto-distribution trigger — intake emits this when a lead becomes VALID. */
   @OnEvent(LEAD_VALID)
   async onLeadValid(event: LeadValidEvent): Promise<void> {
