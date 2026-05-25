@@ -7,6 +7,7 @@ import {
 import { Role } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import type { AuthPrincipal } from '../auth/types';
+import { deleteOrConflict } from '../common/delete-helpers';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
@@ -65,5 +66,14 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto) {
     await this.get(id);
     return this.prisma.user.update({ where: { id }, data: dto, omit: HIDE_HASH });
+  }
+
+  async remove(actor: AuthPrincipal, id: string) {
+    if (actor.id === id) {
+      throw new ForbiddenException("You can't delete your own account.");
+    }
+    await this.get(id);
+    await deleteOrConflict(() => this.prisma.user.delete({ where: { id } }), 'user');
+    return { id, deleted: true };
   }
 }

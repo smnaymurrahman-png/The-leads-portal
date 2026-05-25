@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -46,5 +47,10 @@ export class ClientsController {
     @Body() dto: UpdateClientDto,
   ) {
     return this.clients.update(actor, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() actor: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.clients.remove(actor, id);
   }
 }

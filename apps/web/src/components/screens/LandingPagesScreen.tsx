@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -22,11 +23,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { BulkActionsBar } from '@/components/BulkActionsBar';
 import { BulkImportDialog } from '@/components/BulkImportDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { EditDialog } from '@/components/EditDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
+import { RowActions } from '@/components/RowActions';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { TableSkeleton } from '@/components/skeletons';
+import { useEntityActions } from '@/hooks/use-entity-actions';
 import { clean, opt, str } from '@/lib/form';
 import { apiSend } from '@/lib/proxy-client';
 import { useResource } from '@/lib/use-resource';
@@ -46,30 +52,23 @@ interface LandingRow {
   lead_type: string;
   name: string;
   web_link: string | null;
-  status: string;
+  status: 'WORKING' | 'PUBLISHED';
   intake_secret: string;
   field_map?: Record<string, unknown> | null;
 }
 
-/** Landing pages. All staff can view; ADMIN/SUPER_ADMIN can create. */
+/** Landing pages. All staff can view; ADMIN/SUPER_ADMIN can manage. */
 export function LandingPagesScreen({ role }: { role: string }) {
   const canManage = role !== 'AGENT';
   const { data: pages, loading, error, reload } = useResource<LandingRow>('landing-pages');
+  const a = useEntityActions<LandingRow>('landing-pages', reload);
 
-  async function onSubmit(form: HTMLFormElement): Promise<void> {
+  const allChecked = pages.length > 0 && a.selected.size === pages.length;
+  const someChecked = a.selected.size > 0 && !allChecked;
+
+  async function onCreate(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
-
-    // field_map is an optional JSON object typed into a textarea-like input.
-    let field_map: Record<string, unknown> | undefined;
-    const rawMap = str(fd.get('field_map'));
-    if (rawMap) {
-      try {
-        field_map = JSON.parse(rawMap) as Record<string, unknown>;
-      } catch {
-        throw new Error('Field map must be valid JSON.');
-      }
-    }
-
+    const fieldMap = parseFieldMap(str(fd.get('field_map')));
     await apiSend('POST', 'landing-pages', {
       ...clean({
         lead_type: str(fd.get('lead_type')),
@@ -78,10 +77,39 @@ export function LandingPagesScreen({ role }: { role: string }) {
         status: str(fd.get('status')),
         intake_secret: opt(fd.get('intake_secret')),
       }),
-      ...(field_map ? { field_map } : {}),
+      ...(fieldMap ? { field_map: fieldMap } : {}),
     });
     await reload();
     toast.success('Landing page created');
+  }
+
+  async function onEditSubmit(form: HTMLFormElement): Promise<void> {
+    if (!a.editing) return;
+    const fd = new FormData(form);
+    const fieldMap = parseFieldMap(str(fd.get('field_map')));
+    await apiSend('PATCH', `landing-pages/${a.editing.id}`, {
+      ...clean({
+        lead_type: opt(fd.get('lead_type')),
+        name: opt(fd.get('name')),
+        web_link: opt(fd.get('web_link')),
+        status: opt(fd.get('status')),
+      }),
+      ...(fieldMap ? { field_map: fieldMap } : {}),
+    });
+    await reload();
+    toast.success(`${a.editing.name} updated`);
+  }
+
+  /** Toggle WORKING ↔ PUBLISHED via the same PATCH endpoint. */
+  async function togglePublished(page: LandingRow): Promise<void> {
+    const next = page.status === 'PUBLISHED' ? 'WORKING' : 'PUBLISHED';
+    try {
+      await apiSend('PATCH', `landing-pages/${page.id}`, { status: next });
+      await reload();
+      toast.success(`${page.name} is now ${next.toLowerCase()}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Status change failed');
+    }
   }
 
   return (
@@ -98,62 +126,27 @@ export function LandingPagesScreen({ role }: { role: string }) {
               description="An intake secret is auto-generated unless you supply one."
               submitLabel="Create landing page"
               contentClassName="max-w-xl"
-              onSubmit={onSubmit}
+              onSubmit={onCreate}
             >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Lead type">
-                  <Select name="lead_type" defaultValue="SOLAR">
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LEAD_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t.toLowerCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Status">
-                  <Select name="status" defaultValue="WORKING">
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.toLowerCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Name" className="sm:col-span-2">
-                  <Input name="name" required />
-                </Field>
-                <Field label="Web link" className="sm:col-span-2">
-                  <Input name="web_link" type="url" placeholder="https://…" />
-                </Field>
-                <Field label="Intake secret" hint="leave blank for auto" className="sm:col-span-2">
-                  <Input name="intake_secret" minLength={16} />
-                </Field>
-                <Field label="Field map JSON" hint="optional" className="sm:col-span-2">
-                  <Input
-                    name="field_map"
-                    placeholder='{"email":"email_addr","phone":"contact_phone"}'
-                  />
-                </Field>
-              </div>
+              <LandingPageFields />
             </FormDialog>
           ) : null
         }
       />
 
+      {canManage && (
+        <BulkActionsBar
+          count={a.selected.size}
+          onClear={a.clear}
+          onDelete={() => a.setBulkConfirm('delete')}
+          pending={a.pending}
+        />
+      )}
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <TableSkeleton columns={5} rows={5} />
+            <TableSkeleton columns={canManage ? 7 : 5} rows={5} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : pages.length === 0 ? (
@@ -170,6 +163,16 @@ export function LandingPagesScreen({ role }: { role: string }) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {canManage && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allChecked}
+                        indeterminate={someChecked}
+                        onCheckedChange={(c) => a.toggleAll(pages, c === true)}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
@@ -180,7 +183,16 @@ export function LandingPagesScreen({ role }: { role: string }) {
               </TableHeader>
               <TableBody>
                 {pages.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} data-state={a.isSelected(p.id) ? 'selected' : undefined}>
+                    {canManage && (
+                      <TableCell>
+                        <Checkbox
+                          checked={a.isSelected(p.id)}
+                          onCheckedChange={() => a.toggleOne(p.id)}
+                          aria-label={`Select ${p.name}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>
                       <Badge variant={LEAD_TYPE_VARIANT[p.lead_type] ?? 'outline'}>
@@ -212,7 +224,20 @@ export function LandingPagesScreen({ role }: { role: string }) {
                     </TableCell>
                     {canManage && (
                       <TableCell className="text-right">
-                        <BulkImportDialog landingPage={p} />
+                        <div className="flex items-center justify-end gap-1">
+                          <BulkImportDialog landingPage={p} />
+                          <RowActions
+                            onEdit={() => a.setEditing(p)}
+                            onActivate={
+                              p.status === 'WORKING' ? () => void togglePublished(p) : undefined
+                            }
+                            onDeactivate={
+                              p.status === 'PUBLISHED' ? () => void togglePublished(p) : undefined
+                            }
+                            status={p.status === 'PUBLISHED' ? 'ACTIVE' : 'SUSPENDED'}
+                            onDelete={() => a.setDeletingOne(p)}
+                          />
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -222,11 +247,66 @@ export function LandingPagesScreen({ role }: { role: string }) {
           )}
         </CardContent>
       </Card>
+
+      {a.editing && (
+        <EditDialog
+          open
+          onOpenChange={(o) => !o && a.setEditing(null)}
+          title={`Edit ${a.editing.name}`}
+          description="Intake secret can't be rotated here — recreate the page if you need a fresh one."
+          contentClassName="max-w-xl"
+          onSubmit={onEditSubmit}
+        >
+          <LandingPageFields
+            defaults={{
+              lead_type: a.editing.lead_type,
+              status: a.editing.status,
+              name: a.editing.name,
+              web_link: a.editing.web_link ?? '',
+              field_map: a.editing.field_map
+                ? JSON.stringify(a.editing.field_map)
+                : '',
+            }}
+            hideIntakeSecret
+          />
+        </EditDialog>
+      )}
+
+      <ConfirmDialog
+        open={a.deletingOne !== null}
+        onOpenChange={(o) => !o && a.setDeletingOne(null)}
+        title={`Delete ${a.deletingOne?.name}?`}
+        description="Pages referenced by captured leads can't be hard-deleted. Switch to WORKING (unpublished) instead."
+        confirmLabel="Delete landing page"
+        destructive
+        onConfirm={async () => {
+          if (a.deletingOne) await a.deleteIds([a.deletingOne.id]);
+        }}
+      />
+
+      <ConfirmDialog
+        open={a.bulkConfirm === 'delete'}
+        onOpenChange={(o) => !o && a.setBulkConfirm(null)}
+        title={`Delete ${a.selected.size} landing pages?`}
+        description="Pages with captured leads can't be hard-deleted and will be skipped."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => a.deleteIds(a.selectedIds)}
+      />
     </div>
   );
 }
 
-/** Truncated secret with a click-to-copy. */
+function parseFieldMap(raw: string): Record<string, unknown> | undefined {
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new Error('Field map must be valid JSON.');
+  }
+}
+
+/** Truncated secret with click-to-copy. */
 function SecretCell({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -246,6 +326,77 @@ function SecretCell({ value }: { value: string }) {
       >
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
       </Button>
+    </div>
+  );
+}
+
+/** Shared form fields for both Create and Edit. */
+function LandingPageFields({
+  defaults,
+  hideIntakeSecret = false,
+}: {
+  defaults?: {
+    lead_type?: string;
+    status?: string;
+    name?: string;
+    web_link?: string;
+    field_map?: string;
+  };
+  hideIntakeSecret?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <Field label="Lead type">
+        <Select name="lead_type" defaultValue={defaults?.lead_type ?? 'SOLAR'}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LEAD_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t.toLowerCase()}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Status">
+        <Select name="status" defaultValue={defaults?.status ?? 'WORKING'}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s.toLowerCase()}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Name" className="sm:col-span-2">
+        <Input name="name" defaultValue={defaults?.name ?? ''} required />
+      </Field>
+      <Field label="Web link" className="sm:col-span-2">
+        <Input
+          name="web_link"
+          type="url"
+          placeholder="https://…"
+          defaultValue={defaults?.web_link ?? ''}
+        />
+      </Field>
+      {!hideIntakeSecret && (
+        <Field label="Intake secret" hint="leave blank for auto" className="sm:col-span-2">
+          <Input name="intake_secret" minLength={16} />
+        </Field>
+      )}
+      <Field label="Field map JSON" hint="optional" className="sm:col-span-2">
+        <Input
+          name="field_map"
+          placeholder='{"email":"email_addr","phone":"contact_phone"}'
+          defaultValue={defaults?.field_map ?? ''}
+        />
+      </Field>
     </div>
   );
 }

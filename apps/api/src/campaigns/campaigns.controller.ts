@@ -1,10 +1,20 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthPrincipal } from '../auth/types';
 import { CampaignsService } from './campaigns.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { UpdateCampaignResultsDto } from './dto/update-campaign-results.dto';
 
 /**
@@ -32,6 +42,12 @@ export class CampaignsController {
     return this.campaigns.get(id);
   }
 
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCampaignDto) {
+    return this.campaigns.update(id, dto);
+  }
+
   @Patch(':id/results')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   updateResults(
@@ -39,5 +55,11 @@ export class CampaignsController {
     @Body() dto: UpdateCampaignResultsDto,
   ) {
     return this.campaigns.updateResults(id, dto.results);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.campaigns.remove(id);
   }
 }

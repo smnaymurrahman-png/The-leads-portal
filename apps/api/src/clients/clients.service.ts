@@ -9,6 +9,7 @@ import { Role } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { OwnershipService } from '../auth/ownership.service';
 import type { AuthPrincipal } from '../auth/types';
+import { deleteOrConflict } from '../common/delete-helpers';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateClientDto } from './dto/create-client.dto';
 import type { UpdateClientDto } from './dto/update-client.dto';
@@ -76,6 +77,12 @@ export class ClientsService {
       await this.resolveAgentId(dto.agent_id);
     }
     return this.prisma.client.update({ where: { id }, data: dto, omit: HIDE_HASH });
+  }
+
+  async remove(actor: AuthPrincipal, id: string) {
+    await this.ownership.assertCanAccessClient(actor, id);
+    await deleteOrConflict(() => this.prisma.client.delete({ where: { id } }), 'client');
+    return { id, deleted: true };
   }
 
   /** Validates that `agent_id` is provided and references a real AGENT user. */

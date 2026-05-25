@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { type Prisma } from '@prisma/client';
 import type { AuthPrincipal } from '../auth/types';
+import { deleteOrConflict } from '../common/delete-helpers';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateCampaignDto } from './dto/create-campaign.dto';
+import type { UpdateCampaignDto } from './dto/update-campaign.dto';
 
 @Injectable()
 export class CampaignsService {
@@ -35,11 +37,29 @@ export class CampaignsService {
     return campaign;
   }
 
+  async update(id: string, dto: UpdateCampaignDto) {
+    await this.get(id);
+    const { results, ...rest } = dto;
+    return this.prisma.campaign.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(results !== undefined ? { results: results as Prisma.InputJsonValue } : {}),
+      },
+    });
+  }
+
   async updateResults(id: string, results: Record<string, unknown>) {
     await this.get(id);
     return this.prisma.campaign.update({
       where: { id },
       data: { results: results as Prisma.InputJsonValue },
     });
+  }
+
+  async remove(id: string) {
+    await this.get(id);
+    await deleteOrConflict(() => this.prisma.campaign.delete({ where: { id } }), 'campaign');
+    return { id, deleted: true };
   }
 }
