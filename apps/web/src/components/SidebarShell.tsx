@@ -3,6 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
+import {
+  ADMIN_NAV,
+  AGENT_NAV,
+  CLIENT_NAV,
+  SUPER_ADMIN_NAV,
+  type NavSection,
+} from '@/components/nav-config';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -41,20 +48,34 @@ export interface SessionLike {
  * header with the area name + sign-out on the right, and the page in the
  * main scroll area below it.
  */
+/** Discriminator for role-area selection; lookups stay on the client. */
+export type AreaKey = 'super-admin' | 'admin' | 'agent' | 'client';
+
+const NAV_BY_AREA: Record<AreaKey, NavSection[]> = {
+  'super-admin': SUPER_ADMIN_NAV,
+  admin: ADMIN_NAV,
+  agent: AGENT_NAV,
+  client: CLIENT_NAV,
+};
+
 export function SidebarShell({
   area,
+  areaKey,
   profileHref,
-  navSections,
   session,
   children,
 }: {
+  /** Display label shown in the header + top bar. */
   area: string;
+  /** Which nav blueprint to render — selected on the client to keep
+   *  React-component icon refs out of the server→client prop payload. */
+  areaKey: AreaKey;
   /** Path to this role's profile page — wraps the identity row in a link. */
   profileHref: string;
-  navSections: { label: string; items: NavLink[] }[];
   session: SessionLike;
   children: ReactNode;
 }) {
+  const navSections = NAV_BY_AREA[areaKey];
   const initials = session.name
     .split(/\s+/)
     .map((part) => part[0])
