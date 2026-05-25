@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Copy, ExternalLink, Globe } from 'lucide-react';
+import { BarChart3, Check, Copy, ExternalLink, Globe } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EditDialog } from '@/components/EditDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Field, FormDialog } from '@/components/FormDialog';
+import { LandingPageDetailSheet } from '@/components/LandingPageDetailSheet';
 import { RowActions } from '@/components/RowActions';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { TableSkeleton } from '@/components/skeletons';
@@ -62,6 +63,8 @@ export function LandingPagesScreen({ role }: { role: string }) {
   const canManage = role !== 'AGENT';
   const { data: pages, loading, error, reload } = useResource<LandingRow>('landing-pages');
   const a = useEntityActions<LandingRow>('landing-pages', reload);
+  /** The page open in the right-side control-center drawer. */
+  const [detail, setDetail] = useState<LandingRow | null>(null);
 
   const allChecked = pages.length > 0 && a.selected.size === pages.length;
   const someChecked = a.selected.size > 0 && !allChecked;
@@ -193,7 +196,15 @@ export function LandingPagesScreen({ role }: { role: string }) {
                         />
                       </TableCell>
                     )}
-                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => setDetail(p)}
+                        className="text-left font-medium text-foreground transition-colors hover:text-primary"
+                      >
+                        {p.name}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={LEAD_TYPE_VARIANT[p.lead_type] ?? 'outline'}>
                         {p.lead_type.toLowerCase()}
@@ -225,6 +236,15 @@ export function LandingPagesScreen({ role }: { role: string }) {
                     {canManage && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDetail(p)}
+                          >
+                            <BarChart3 className="size-3.5" />
+                            Details
+                          </Button>
                           <BulkImportDialog landingPage={p} />
                           <RowActions
                             onEdit={() => a.setEditing(p)}
@@ -292,6 +312,13 @@ export function LandingPagesScreen({ role }: { role: string }) {
         confirmLabel="Delete"
         destructive
         onConfirm={() => a.deleteIds(a.selectedIds)}
+      />
+
+      <LandingPageDetailSheet
+        page={detail}
+        open={detail !== null}
+        onOpenChange={(o) => !o && setDetail(null)}
+        onSecretRotated={reload}
       />
     </div>
   );

@@ -48,4 +48,16 @@ export class LandingPagesController {
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.landingPages.remove(id);
   }
+
+  @Get(':id/metrics')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.AGENT)
+  metrics(@Param('id', ParseUUIDPipe) id: string) {
+    return this.landingPages.metrics(id);
+  }
+
+  @Post(':id/rotate-secret')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  rotateSecret(@Param('id', ParseUUIDPipe) id: string) {
+    return this.landingPages.rotateSecret(id);
+  }
 }
