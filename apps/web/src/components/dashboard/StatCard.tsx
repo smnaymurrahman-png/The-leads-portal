@@ -25,17 +25,19 @@ export function StatCard({
 }) {
   return (
     <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-5">
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <CardContent className="flex items-start justify-between gap-3 p-4">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {label}
           </p>
-          <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          <p className="text-2xl font-semibold tracking-tight tabular-nums leading-none">
+            {value}
+          </p>
+          {hint && <p className="pt-1 text-xs text-muted-foreground">{hint}</p>}
           {trend && (
             <p
               className={cn(
-                'inline-flex items-center gap-1 text-xs font-medium',
+                'inline-flex items-center gap-1 pt-1 text-xs font-medium',
                 trend.direction === 'up' && 'text-emerald-600 dark:text-emerald-400',
                 trend.direction === 'down' && 'text-destructive',
                 trend.direction === 'flat' && 'text-muted-foreground',
@@ -50,11 +52,11 @@ export function StatCard({
         {Icon && (
           <span
             className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground',
+              'flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground',
               iconClassName,
             )}
           >
-            <Icon className="size-5" />
+            <Icon className="size-4" />
           </span>
         )}
       </CardContent>

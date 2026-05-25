@@ -111,7 +111,7 @@ export async function SuperAdminDashboard({
             />
           </section>
 
-          <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <section className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <RevenueTrendCard />
             <Card>
               <CardHeader>
@@ -139,7 +139,7 @@ export async function SuperAdminDashboard({
             </Card>
           </section>
 
-          <section className="mt-6">
+          <section className="mt-4">
             <RecentOrdersCard ordersHref={ordersHref} />
           </section>
         </>

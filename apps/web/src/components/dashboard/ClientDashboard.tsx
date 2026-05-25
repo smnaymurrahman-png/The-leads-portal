@@ -79,7 +79,7 @@ export async function ClientDashboard({ session }: { session: Session }) {
         />
       </section>
 
-      <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <section className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Active orders</CardTitle>

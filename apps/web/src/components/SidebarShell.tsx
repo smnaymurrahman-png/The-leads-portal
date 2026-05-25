@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -58,6 +61,19 @@ export function SidebarShell({
     .slice(0, 2)
     .join('')
     .toUpperCase();
+  const pathname = usePathname();
+
+  /**
+   * Match exact paths plus their descendants — but don't let the dashboard
+   * root (e.g. `/super-admin`) claim every sibling page underneath it.
+   * `/super-admin/users` is active for itself and any `/super-admin/users/*`
+   * detail route; `/super-admin` is active only on the bare dashboard.
+   */
+  function isActive(href: string): boolean {
+    if (pathname === href) return true;
+    const depth = href.split('/').filter(Boolean).length;
+    return depth > 1 && pathname.startsWith(`${href}/`);
+  }
 
   return (
     <NotificationsProvider>
@@ -81,14 +97,21 @@ export function SidebarShell({
               <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {section.items.map(({ href, label, icon: Icon }) => (
-                    <SidebarMenuItem key={href}>
-                      <SidebarMenuButton render={<Link href={href} />} tooltip={label}>
-                        <Icon className="size-4" />
-                        <span>{label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {section.items.map(({ href, label, icon: Icon }) => {
+                    const active = isActive(href);
+                    return (
+                      <SidebarMenuItem key={href}>
+                        <SidebarMenuButton
+                          render={<Link href={href} />}
+                          tooltip={label}
+                          isActive={active}
+                        >
+                          <Icon className="size-4" />
+                          <span>{label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -115,9 +138,9 @@ export function SidebarShell({
       </Sidebar>
 
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur">
+        <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur lg:px-4">
           <SidebarTrigger />
-          <Separator orientation="vertical" className="mr-2 h-5" />
+          <Separator orientation="vertical" className="mr-1 h-5" />
           <div className="flex flex-1 items-center justify-between">
             <span className="text-sm font-medium text-muted-foreground">{area}</span>
             <div className="flex items-center gap-1">
@@ -126,8 +149,8 @@ export function SidebarShell({
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        <main className="flex-1 overflow-y-auto px-4 py-5 lg:px-6 lg:py-6">
+          <div className="mx-auto w-full max-w-screen-2xl">{children}</div>
         </main>
       </SidebarInset>
     </SidebarProvider>

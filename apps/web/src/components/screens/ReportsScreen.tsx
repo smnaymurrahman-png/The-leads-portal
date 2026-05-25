@@ -226,14 +226,14 @@ export function ReportsScreen() {
         />
       </section>
 
-      <Tabs defaultValue="revenue" className="mt-8">
+      <Tabs defaultValue="revenue" className="mt-5">
         <TabsList>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="volume">Volume</TabsTrigger>
           <TabsTrigger value="quality">Quality</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="revenue" className="space-y-6">
+        <TabsContent value="revenue" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Daily revenue (last 30 days)</CardTitle>
@@ -315,7 +315,7 @@ export function ReportsScreen() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="volume" className="space-y-6">
+        <TabsContent value="volume" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Orders & leads (last 30 days)</CardTitle>
@@ -394,7 +394,7 @@ export function ReportsScreen() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="quality" className="space-y-6">
+        <TabsContent value="quality" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Lead quality KPIs</CardTitle>
