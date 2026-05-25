@@ -1,9 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Phone, Wifi, WifiOff, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, Phone, Wifi, WifiOff, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
@@ -22,6 +31,8 @@ import {
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { apiGet } from '@/lib/proxy-client';
 import { cn } from '@/lib/utils';
+
+const LEAD_TYPES = ['SOLAR', 'SWEEPSTAKES', 'PAYDAY', 'HOMEOWNER'];
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   DELIVERED: 'default',
@@ -51,6 +62,8 @@ function formatTime(iso: string): string {
 export function LiveLeadsScreen() {
   const { liveLeads, seedLiveLeads, status } = useNotifications();
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
 
   useEffect(() => {
     void (async () => {
@@ -63,15 +76,80 @@ export function LiveLeadsScreen() {
     })();
   }, [seedLiveLeads]);
 
-  const today = liveLeads.filter((lead) => isToday(lead.createdAt));
+  // Narrow leadgs by lead-type + free-text search across name/email/phone/state.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return liveLeads.filter((lead) => {
+      if (typeFilter !== 'ALL' && lead.leadType !== typeFilter) return false;
+      if (!q) return true;
+      return (
+        lead.publicLeadId.toLowerCase().includes(q) ||
+        (lead.fullName?.toLowerCase().includes(q) ?? false) ||
+        (lead.email?.toLowerCase().includes(q) ?? false) ||
+        (lead.phone?.toLowerCase().includes(q) ?? false) ||
+        (lead.state?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [liveLeads, query, typeFilter]);
+
+  const today = filtered.filter((lead) => isToday(lead.createdAt));
+
+  function downloadCsv(): void {
+    if (filtered.length === 0) return;
+    const header = [
+      'public_lead_id',
+      'lead_type',
+      'full_name',
+      'email',
+      'phone',
+      'state',
+      'delivered_at',
+    ];
+    const rows = filtered.map((l) => [
+      l.publicLeadId,
+      l.leadType,
+      l.fullName ?? '',
+      l.email ?? '',
+      l.phone ?? '',
+      l.state ?? '',
+      l.createdAt,
+    ]);
+    const escape = (v: string): string =>
+      /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const csv = [header, ...rows].map((r) => r.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `my-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div>
       <PageHeader
-        eyebrow="Live"
-        title="Live leads"
-        description="New leads stream in the moment they are delivered."
-        actions={<ConnectionPill status={status} />}
+        eyebrow="My leads"
+        title="Leads delivered to you"
+        description="A live feed of everything that's landed in your account. Filter or search to find a specific lead, export to CSV for your CRM."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={downloadCsv}
+              disabled={filtered.length === 0}
+              title="Download current view as CSV"
+            >
+              <Download className="size-3.5" />
+              Export CSV
+            </Button>
+            <ConnectionPill status={status} />
+          </div>
+        }
       />
 
       {error && (
@@ -79,6 +157,29 @@ export function LiveLeadsScreen() {
           {error}
         </p>
       )}
+
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Input
+          type="search"
+          placeholder="Search by lead id, name, email, phone, state…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="sm:max-w-sm"
+        />
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'ALL')}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All types</SelectItem>
+            {LEAD_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t.toLowerCase()}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <Tabs defaultValue="today">
         <TabsList>
@@ -88,17 +189,28 @@ export function LiveLeadsScreen() {
           </TabsTrigger>
           <TabsTrigger value="all">
             All leads
-            <span className="ml-1 text-xs text-muted-foreground">({liveLeads.length})</span>
+            <span className="ml-1 text-xs text-muted-foreground">({filtered.length})</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="today">
-          <LeadsTable rows={today} emptyMessage="No leads delivered today yet." />
+          <LeadsTable
+            rows={today}
+            emptyMessage={
+              query || typeFilter !== 'ALL'
+                ? 'No leads delivered today match your filter.'
+                : 'No leads delivered today yet.'
+            }
+          />
         </TabsContent>
         <TabsContent value="all">
           <LeadsTable
-            rows={liveLeads}
-            emptyMessage="No leads delivered yet — they appear here instantly."
+            rows={filtered}
+            emptyMessage={
+              query || typeFilter !== 'ALL'
+                ? 'No leads match your filter. Try clearing it.'
+                : 'No leads delivered yet — they appear here instantly.'
+            }
           />
         </TabsContent>
       </Tabs>

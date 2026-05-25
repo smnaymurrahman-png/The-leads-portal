@@ -120,8 +120,15 @@ export const CLIENT_NAV: NavSection[] = [
     label: 'Buying',
     items: [
       { href: '/client/orders', label: 'Orders', icon: ShoppingCart },
-      { href: '/client/leads', label: 'Live Leads', icon: Zap },
+      { href: '/client/leads', label: 'My Leads', icon: Zap },
       { href: '/client/replacements', label: 'Replacements', icon: RefreshCw },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { href: '/client/billing', label: 'Billing', icon: DollarSign },
+      { href: '/client/reports', label: 'Reports', icon: BarChart3 },
     ],
   },
 ];
