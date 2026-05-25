@@ -82,7 +82,7 @@ export function LeadDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-3xl">
         <SheetHeader className="space-y-3 border-b border-border pb-4">
           <SheetTitle className="font-mono text-base">
             {lead?.public_lead_id ?? 'Lead detail'}

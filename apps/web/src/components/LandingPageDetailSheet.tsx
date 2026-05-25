@@ -145,7 +145,7 @@ export function LandingPageDetailSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
           <SheetHeader className="space-y-3 border-b border-border pb-4">
             <SheetTitle className="text-base">{page?.name ?? 'Landing page'}</SheetTitle>
             {page && (
