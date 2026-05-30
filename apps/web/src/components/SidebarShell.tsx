@@ -35,6 +35,11 @@ export interface NavLink {
   href: string;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Visually indent under a parent item (no link nesting, just left padding). */
+  nested?: boolean;
+  /** Only highlight when the route matches exactly — used by parent items
+   *  that have child sub-routes (e.g. Leads with per-type sub-pages). */
+  exact?: boolean;
 }
 
 export interface SessionLike {
@@ -90,8 +95,9 @@ export function SidebarShell({
    * `/super-admin/users` is active for itself and any `/super-admin/users/*`
    * detail route; `/super-admin` is active only on the bare dashboard.
    */
-  function isActive(href: string): boolean {
+  function isActive(href: string, exact?: boolean): boolean {
     if (pathname === href) return true;
+    if (exact) return false;
     const depth = href.split('/').filter(Boolean).length;
     return depth > 1 && pathname.startsWith(`${href}/`);
   }
@@ -118,14 +124,15 @@ export function SidebarShell({
               <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {section.items.map(({ href, label, icon: Icon }) => {
-                    const active = isActive(href);
+                  {section.items.map(({ href, label, icon: Icon, nested, exact }) => {
+                    const active = isActive(href, exact);
                     return (
                       <SidebarMenuItem key={href}>
                         <SidebarMenuButton
                           render={<Link href={href} />}
                           tooltip={label}
                           isActive={active}
+                          className={nested ? 'pl-8' : undefined}
                         >
                           <Icon className="size-4" />
                           <span>{label}</span>

@@ -1,9 +1,11 @@
 import {
   BarChart3,
+  Banknote,
   Building2,
   Database,
   DollarSign,
   Globe,
+  Home,
   KeyRound,
   LayoutDashboard,
   Megaphone,
@@ -11,6 +13,8 @@ import {
   ScrollText,
   ShieldOff,
   ShoppingCart,
+  Sun,
+  Ticket,
   Users,
   Zap,
 } from 'lucide-react';
@@ -40,7 +44,11 @@ export const SUPER_ADMIN_NAV: NavSection[] = [
   {
     label: 'Operations',
     items: [
-      { href: '/super-admin/leads', label: 'Leads', icon: Database },
+      { href: '/super-admin/leads', label: 'Leads', icon: Database, exact: true },
+      { href: '/super-admin/leads/sweepstakes', label: 'Sweepstakes', icon: Ticket, nested: true },
+      { href: '/super-admin/leads/solar', label: 'Solar', icon: Sun, nested: true },
+      { href: '/super-admin/leads/payday', label: 'Payday', icon: Banknote, nested: true },
+      { href: '/super-admin/leads/homeowner', label: 'Homeowner', icon: Home, nested: true },
       { href: '/super-admin/orders', label: 'Orders', icon: ShoppingCart },
       { href: '/super-admin/replacements', label: 'Replacements', icon: RefreshCw },
     ],
@@ -78,7 +86,11 @@ export const ADMIN_NAV: NavSection[] = [
   {
     label: 'Operations',
     items: [
-      { href: '/admin/leads', label: 'Leads', icon: Database },
+      { href: '/admin/leads', label: 'Leads', icon: Database, exact: true },
+      { href: '/admin/leads/sweepstakes', label: 'Sweepstakes', icon: Ticket, nested: true },
+      { href: '/admin/leads/solar', label: 'Solar', icon: Sun, nested: true },
+      { href: '/admin/leads/payday', label: 'Payday', icon: Banknote, nested: true },
+      { href: '/admin/leads/homeowner', label: 'Homeowner', icon: Home, nested: true },
       { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
       { href: '/admin/replacements', label: 'Replacements', icon: RefreshCw },
     ],

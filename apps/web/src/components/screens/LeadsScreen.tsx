@@ -71,8 +71,24 @@ interface LeadRow {
   } | null;
 }
 
-const LEAD_TYPES = ['SOLAR', 'SWEEPSTAKES', 'PAYDAY', 'HOMEOWNER'];
+const LEAD_TYPES = ['SOLAR', 'SWEEPSTAKES', 'PAYDAY', 'HOMEOWNER'] as const;
+type LeadType = (typeof LEAD_TYPES)[number];
+
 const STATES = ['UNSOLD_POOL', 'RESERVED', 'ASSIGNED', 'DELIVERED', 'REJECTED', 'REPLACED'];
+
+const LEAD_TYPE_LABEL: Record<LeadType, string> = {
+  SOLAR: 'Solar',
+  SWEEPSTAKES: 'Sweepstakes',
+  PAYDAY: 'Payday',
+  HOMEOWNER: 'Homeowner',
+};
+
+const LEAD_TYPE_DESCRIPTION: Record<LeadType, string> = {
+  SOLAR: 'Solar leads captured through your landing pages — ready to sell, delivered, or rejected.',
+  SWEEPSTAKES: 'Sweepstakes leads captured through your landing pages — ready to sell, delivered, or rejected.',
+  PAYDAY: 'Payday leads captured through your landing pages — ready to sell, delivered, or rejected.',
+  HOMEOWNER: 'Homeowner leads captured through your landing pages — ready to sell, delivered, or rejected.',
+};
 
 const STATE_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   UNSOLD_POOL: 'outline',
@@ -102,11 +118,18 @@ function formatTime(iso: string): string {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+interface LeadsScreenProps {
+  /** When provided, the screen renders a single-type view: type filter is
+   *  locked, the Type filter dropdown + Type column are hidden, and the page
+   *  title reflects the lead type (e.g. "Solar Leads"). */
+  lockedLeadType?: LeadType;
+}
+
 /** Staff Leads browser — every lead in the system with filters + summary tiles. */
-export function LeadsScreen() {
+export function LeadsScreen({ lockedLeadType }: LeadsScreenProps = {}) {
   const [rows, setRows] = useState<LeadRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>(lockedLeadType ?? 'ALL');
   const [stateFilter, setStateFilter] = useState<string>('ALL');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -230,8 +253,12 @@ export function LeadsScreen() {
     <div>
       <PageHeader
         eyebrow="Operations"
-        title="Leads"
-        description="Every lead captured through your landing pages — ready to sell, delivered, or rejected."
+        title={lockedLeadType ? `${LEAD_TYPE_LABEL[lockedLeadType]} Leads` : 'Leads'}
+        description={
+          lockedLeadType
+            ? LEAD_TYPE_DESCRIPTION[lockedLeadType]
+            : 'Every lead captured through your landing pages — ready to sell, delivered, or rejected.'
+        }
         actions={
           <Button
             type="button"
@@ -287,19 +314,21 @@ export function LeadsScreen() {
           className="sm:max-w-sm"
         />
         <div className="flex items-center gap-2">
-          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'ALL')}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All types</SelectItem>
-              {LEAD_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t.toLowerCase()}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!lockedLeadType && (
+            <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? 'ALL')}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All types</SelectItem>
+                {LEAD_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t.toLowerCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={stateFilter} onValueChange={(v) => setStateFilter(v ?? 'ALL')}>
             <SelectTrigger className="w-44">
               <SelectValue />
@@ -351,7 +380,7 @@ export function LeadsScreen() {
       <Card>
         <CardContent className="p-0">
           {rows === null ? (
-            <TableSkeleton columns={9} rows={8} />
+            <TableSkeleton columns={lockedLeadType ? 8 : 9} rows={8} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : filtered && filtered.length === 0 ? (
@@ -379,7 +408,7 @@ export function LeadsScreen() {
                   </TableHead>
                   <TableHead>Captured</TableHead>
                   <TableHead>Lead</TableHead>
-                  <TableHead>Type</TableHead>
+                  {!lockedLeadType && <TableHead>Type</TableHead>}
                   <TableHead>Name</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Geo</TableHead>
@@ -416,11 +445,13 @@ export function LeadsScreen() {
                     >
                       {r.publicLeadId}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant={LEAD_TYPE_VARIANT[r.leadType] ?? 'outline'}>
-                        {r.leadType.toLowerCase()}
-                      </Badge>
-                    </TableCell>
+                    {!lockedLeadType && (
+                      <TableCell>
+                        <Badge variant={LEAD_TYPE_VARIANT[r.leadType] ?? 'outline'}>
+                          {r.leadType.toLowerCase()}
+                        </Badge>
+                      </TableCell>
+                    )}
                     <TableCell className="text-sm">{r.fullName ?? '—'}</TableCell>
                     <TableCell className="text-sm">
                       <div className="flex flex-col gap-0.5">
