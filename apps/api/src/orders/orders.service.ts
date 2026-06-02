@@ -57,6 +57,7 @@ export class OrdersService {
         total_amount: total,
         status: OrderStatus.REQUESTED,
         requirements: dto.requirements,
+        needed_by: dto.needed_by ? new Date(dto.needed_by) : null,
         requested_at: new Date(),
       },
       include: { client: CLIENT_SUMMARY },

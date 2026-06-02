@@ -1,5 +1,14 @@
 import { DeliveryMode, LeadType } from '@prisma/client';
-import { IsEnum, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /** An order request placed by a CLIENT. */
 export class CreateOrderDto {
@@ -21,4 +30,9 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   requirements?: string;
+
+  /** ISO 8601 date/time the client wants the leads delivered by. */
+  @IsOptional()
+  @IsDateString()
+  needed_by?: string;
 }

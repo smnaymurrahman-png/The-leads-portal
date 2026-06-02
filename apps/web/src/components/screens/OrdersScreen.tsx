@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -56,6 +57,7 @@ interface OrderRow {
   quantity_remaining: number;
   total_amount: string;
   status: string;
+  needed_by: string | null;
   stripe_payment_link: string | null;
   reject_note: string | null;
   client: { full_name: string; business_name: string | null } | null;
@@ -63,6 +65,15 @@ interface OrderRow {
 
 const money = (n: string | number): string =>
   `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Compact date + time, e.g. "Jun 10, 2:30 PM". */
+const dateTime = (iso: string): string =>
+  new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
 /**
  * Order lifecycle screen. CLIENT places orders and pays; ADMIN/SUPER_ADMIN
@@ -89,12 +100,17 @@ export function OrdersScreen({ role }: { role: string }) {
       }
     }
 
+    // datetime-local gives a local "YYYY-MM-DDTHH:mm" string — send it as a
+    // full ISO timestamp so the API stores an unambiguous instant.
+    const neededLocal = opt(fd.get('needed_by'));
+    const needed_by = neededLocal ? new Date(neededLocal).toISOString() : undefined;
+
     await apiSend('POST', 'orders', {
       lead_type: str(fd.get('lead_type')),
       delivery_mode: str(fd.get('delivery_mode')),
       quantity: num(fd.get('quantity')),
       criteria,
-      ...clean({ requirements: opt(fd.get('requirements')) }),
+      ...clean({ requirements: opt(fd.get('requirements')), needed_by }),
     });
     await reload();
     toast.success('Order submitted for review');
@@ -259,8 +275,15 @@ export function OrdersScreen({ role }: { role: string }) {
                     required
                   />
                 </Field>
-                <Field label="Requirements">
-                  <Input name="requirements" placeholder="optional" />
+                <Field label="When are the leads needed?" hint="optional">
+                  <Input name="needed_by" type="datetime-local" />
+                </Field>
+                <Field label="Requirements" hint="optional" className="sm:col-span-2">
+                  <Textarea
+                    name="requirements"
+                    rows={5}
+                    placeholder="Describe what you're looking for — targeting notes, delivery preferences, anything the team should know."
+                  />
                 </Field>
                 <Field label="Criteria JSON" hint="optional" className="sm:col-span-2">
                   <Input
@@ -279,7 +302,7 @@ export function OrdersScreen({ role }: { role: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <TableSkeleton columns={9} rows={6} />
+            <TableSkeleton columns={10} rows={6} />
           ) : error ? (
             <p className="px-6 py-12 text-sm text-destructive">{error}</p>
           ) : orders.length === 0 ? (
@@ -305,6 +328,7 @@ export function OrdersScreen({ role }: { role: string }) {
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Remaining</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Needed by</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -328,6 +352,9 @@ export function OrdersScreen({ role }: { role: string }) {
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
                       {money(o.total_amount)}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                      {o.needed_by ? dateTime(o.needed_by) : '—'}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
