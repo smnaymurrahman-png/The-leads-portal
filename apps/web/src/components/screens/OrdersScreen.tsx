@@ -90,16 +90,6 @@ export function OrdersScreen({ role }: { role: string }) {
   async function onCreate(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
 
-    let criteria: Record<string, unknown> = {};
-    const rawCriteria = str(fd.get('criteria'));
-    if (rawCriteria) {
-      try {
-        criteria = JSON.parse(rawCriteria) as Record<string, unknown>;
-      } catch {
-        throw new Error('Criteria must be valid JSON.');
-      }
-    }
-
     // datetime-local gives a local "YYYY-MM-DDTHH:mm" string — send it as a
     // full ISO timestamp so the API stores an unambiguous instant.
     const neededLocal = opt(fd.get('needed_by'));
@@ -109,7 +99,7 @@ export function OrdersScreen({ role }: { role: string }) {
       lead_type: str(fd.get('lead_type')),
       delivery_mode: str(fd.get('delivery_mode')),
       quantity: num(fd.get('quantity')),
-      criteria,
+      criteria: {},
       ...clean({ requirements: opt(fd.get('requirements')), needed_by }),
     });
     await reload();
@@ -283,12 +273,6 @@ export function OrdersScreen({ role }: { role: string }) {
                     name="requirements"
                     rows={5}
                     placeholder="Describe what you're looking for — targeting notes, delivery preferences, anything the team should know."
-                  />
-                </Field>
-                <Field label="Criteria JSON" hint="optional" className="sm:col-span-2">
-                  <Input
-                    name="criteria"
-                    placeholder='{"geo":{"state":"AZ"},"age_min":25}'
                   />
                 </Field>
               </div>
