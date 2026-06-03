@@ -40,3 +40,16 @@ export async function apiSend<T>(
   }
   return (await res.json()) as T;
 }
+
+/**
+ * POST multipart form data (e.g. a file upload) through the proxy. The
+ * `Content-Type` (with its boundary) is set by the browser — do not set it
+ * manually. Throws on a non-2xx response.
+ */
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api/proxy/${path}`, { method: 'POST', body: form });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res));
+  }
+  return (await res.json()) as T;
+}

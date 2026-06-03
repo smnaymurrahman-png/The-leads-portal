@@ -21,11 +21,10 @@ export enum NodeEnv {
  * declared here and validated at boot — if anything is missing or malformed
  * the process exits immediately instead of failing later at runtime.
  *
- * The JWT / Stripe / HMAC secrets are declared now (Phase 0 scaffold) and
- * consumed by later phases:
- *   JWT_SECRET            — Phase 2 (auth)
- *   INTAKE_HMAC_SECRET    — Phase 3 (signed lead-intake webhook)
- *   STRIPE_*              — Phase 4 (payments)
+ *   JWT_SECRET            — auth
+ *   INTAKE_HMAC_SECRET    — signed lead-intake webhook
+ *   UPLOAD_*              — payment-proof + invoice file storage (Railway volume)
+ *   ENCRYPTION_KEY        — at-rest encryption for stored API keys
  */
 export class EnvironmentVariables {
   @IsEnum(NodeEnv)
@@ -41,7 +40,7 @@ export class EnvironmentVariables {
   @IsUrl({ require_tld: false })
   FRONTEND_URL: string = 'http://localhost:3000';
 
-  /** Public origin of this API — used for absolute links and webhook URLs. */
+  /** Public origin of this API — used for absolute links in invoices. */
   @IsUrl({ require_tld: false })
   BACKEND_URL: string = 'http://localhost:4000';
 
@@ -50,7 +49,7 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   DATABASE_URL!: string;
 
-  /** Signing secret for the JWT access tokens issued in Phase 2. */
+  /** Signing secret for the JWT access tokens. */
   @IsString()
   @IsNotEmpty()
   JWT_SECRET!: string;
@@ -60,22 +59,12 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   JWT_EXPIRES_IN: string = '1d';
 
-  /** Stripe secret API key (Phase 4). */
-  @IsString()
-  @IsNotEmpty()
-  STRIPE_SECRET_KEY!: string;
-
-  /** Stripe webhook signing secret (Phase 4). */
-  @IsString()
-  @IsNotEmpty()
-  STRIPE_WEBHOOK_SECRET!: string;
-
-  /** Shared secret for verifying HMAC-signed lead-intake requests (Phase 3). */
+  /** Shared secret for verifying HMAC-signed lead-intake requests. */
   @IsString()
   @IsNotEmpty()
   INTAKE_HMAC_SECRET!: string;
 
-  /** Secret used to encrypt stored API keys at rest (AES-256-GCM, Phase 10). */
+  /** Secret used to encrypt stored API keys at rest (AES-256-GCM). */
   @IsString()
   @IsNotEmpty()
   ENCRYPTION_KEY!: string;
@@ -85,6 +74,42 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   LEAD_DEDUP_WINDOW_DAYS: number = 30;
+
+  // ── File storage (Railway persistent volume) ──────────────────────────────
+
+  /**
+   * Filesystem root for uploaded files — payment-proof screenshots and
+   * generated invoice PDFs. Must be writable. In production, mount the
+   * Railway volume at this path.
+   *   Railway: /var/lib/leads-portal/uploads
+   *   Local:   ./apps/api/uploads (gitignored)
+   */
+  @IsString()
+  @IsNotEmpty()
+  UPLOAD_DIR: string = './uploads';
+
+  /** Max payment-proof file size in MB. */
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  UPLOAD_MAX_MB: number = 10;
+
+  /**
+   * HMAC secret for signing the short-lived URL tokens that protect
+   * `GET /api/orders/:id/payment-proof` and `GET /api/invoices/:id/pdf`.
+   * Generate with `openssl rand -base64 32`.
+   */
+  @IsString()
+  @IsNotEmpty()
+  UPLOAD_SIGNING_SECRET!: string;
+
+  /** Validity window (seconds) for the upload-fetch signed URLs. Default 10 min. */
+  @Type(() => Number)
+  @IsInt()
+  @Min(30)
+  @Max(86_400)
+  UPLOAD_TOKEN_TTL_SECONDS: number = 600;
 }
 
 /**

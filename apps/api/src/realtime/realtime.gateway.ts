@@ -13,6 +13,9 @@ export function roomFor(principalId: string): string {
   return `room:${principalId}`;
 }
 
+/** Shared room joined by every authenticated ADMIN / SUPER_ADMIN socket. */
+export const ADMIN_ROOM = 'role:admin';
+
 /** How long to wait for a client to acknowledge a delivered lead. */
 const ACK_TIMEOUT_MS = 5_000;
 
@@ -49,6 +52,9 @@ export class RealtimeGateway implements OnGatewayConnection {
     socket.data.principalId = payload.sub;
     socket.data.role = payload.role;
     void socket.join(roomFor(payload.sub));
+    if (payload.role === 'ADMIN' || payload.role === 'SUPER_ADMIN') {
+      void socket.join(ADMIN_ROOM);
+    }
     this.logger.log(`Socket ${socket.id} authenticated → ${roomFor(payload.sub)}`);
   }
 
@@ -63,6 +69,14 @@ export class RealtimeGateway implements OnGatewayConnection {
       return;
     }
     this.server.to(roomFor(principalId)).emit(event, payload);
+  }
+
+  /** Fire-and-forget broadcast to every connected ADMIN / SUPER_ADMIN socket. */
+  emitToAdmins(event: string, payload: unknown): void {
+    if (!this.server) {
+      return;
+    }
+    this.server.to(ADMIN_ROOM).emit(event, payload);
   }
 
   /**

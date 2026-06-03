@@ -21,11 +21,9 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { ChartSkeleton, StatGridSkeleton } from '@/components/skeletons';
 import { apiGet } from '@/lib/proxy-client';
 
-interface Transaction {
+interface InvoiceRow {
   amount: string;
-  type: 'CHARGE' | 'REFUND' | 'CREDIT';
-  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
-  created_at: string;
+  issued_at: string | null;
 }
 
 interface LeadItem {
@@ -60,11 +58,11 @@ const moneyShort = (n: number): string =>
 const shortDate = (iso: string): string => iso.slice(5).replace('-', '/');
 
 /**
- * Client-side analytics — derived entirely from /transactions/mine + /leads/mine
+ * Client-side analytics — derived entirely from /invoices + /leads/mine
  * + /orders + /replacements so no new aggregation endpoint is needed.
  */
 export function ClientReportsScreen() {
-  const [txs, setTxs] = useState<Transaction[] | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   const [leads, setLeads] = useState<LeadItem[] | null>(null);
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [reps, setReps] = useState<ReplacementRow[] | null>(null);
@@ -72,13 +70,13 @@ export function ClientReportsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [t, l, o, r] = await Promise.all([
-        apiGet<Transaction[]>('transactions/mine'),
+      const [inv, l, o, r] = await Promise.all([
+        apiGet<InvoiceRow[]>('invoices'),
         apiGet<LeadItem[]>('leads/mine'),
         apiGet<OrderRow[]>('orders'),
         apiGet<ReplacementRow[]>('replacements'),
       ]);
-      setTxs(t);
+      setInvoices(inv);
       setLeads(l);
       setOrders(o);
       setReps(r);
@@ -93,7 +91,7 @@ export function ClientReportsScreen() {
 
   // 30-day daily series, bucketed by UTC day.
   const series = useMemo(() => {
-    if (!txs || !leads) return null;
+    if (!invoices || !leads) return null;
     const end = new Date();
     end.setUTCHours(0, 0, 0, 0);
     const start = new Date(end);
@@ -106,12 +104,11 @@ export function ClientReportsScreen() {
       d.setUTCDate(start.getUTCDate() + i);
       bucket[dayKey(d)] = { date: dayKey(d), spend: 0, leads: 0 };
     }
-    for (const t of txs) {
-      if (t.status !== 'SUCCEEDED') continue;
-      const key = dayKey(new Date(t.created_at));
+    for (const inv of invoices) {
+      if (!inv.issued_at) continue;
+      const key = dayKey(new Date(inv.issued_at));
       if (!bucket[key]) continue;
-      const sign = t.type === 'CHARGE' ? 1 : -1;
-      bucket[key].spend += sign * Number(t.amount);
+      bucket[key].spend += Number(inv.amount);
     }
     for (const l of leads) {
       if (l.deliveryStatus !== 'DELIVERED') continue;
@@ -120,20 +117,16 @@ export function ClientReportsScreen() {
       bucket[key].leads += 1;
     }
     return Object.values(bucket).map((b) => ({ ...b, spend: Number(b.spend.toFixed(2)) }));
-  }, [txs, leads]);
+  }, [invoices, leads]);
 
   const totals = useMemo(() => {
-    if (!txs || !leads || !orders || !reps) return null;
-    const succeeded = txs.filter((t) => t.status === 'SUCCEEDED');
-    const net = succeeded.reduce(
-      (s, t) => s + (t.type === 'CHARGE' ? 1 : -1) * Number(t.amount),
-      0,
-    );
+    if (!invoices || !leads || !orders || !reps) return null;
+    const net = invoices.reduce((s, inv) => s + Number(inv.amount), 0);
     const delivered = leads.filter((l) => l.deliveryStatus === 'DELIVERED').length;
     const cpl = delivered > 0 ? net / delivered : 0;
     const replacementRate = delivered > 0 ? reps.length / delivered : 0;
     return { net, delivered, cpl, replacementRate, openOrders: orders.length };
-  }, [txs, leads, orders, reps]);
+  }, [invoices, leads, orders, reps]);
 
   const byType = useMemo(() => {
     if (!leads) return null;
@@ -152,7 +145,7 @@ export function ClientReportsScreen() {
       <PageHeader
         eyebrow="Insights"
         title="Spend & lead performance"
-        description="A 30-day view of what you've paid and what landed. All computed from your own transactions and leads."
+        description="A 30-day view of what you've paid and what landed. All computed from your own invoices and leads."
       />
 
       {error ? (
@@ -166,7 +159,7 @@ export function ClientReportsScreen() {
           <StatCard
             label="Net spend"
             value={moneyShort(totals.net)}
-            hint="Successful charges minus refunds."
+            hint="Total invoiced to you."
             icon={Coins}
             iconClassName="bg-primary/10 text-primary"
           />

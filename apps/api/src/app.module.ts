@@ -12,15 +12,16 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { DistributionModule } from './distribution/distribution.module';
 import { HealthModule } from './health/health.module';
 import { IntakeModule } from './intake/intake.module';
+import { InvoicesModule } from './invoices/invoices.module';
 import { LandingPagesModule } from './landing-pages/landing-pages.module';
 import { LeadsModule } from './leads/leads.module';
 import { OrdersModule } from './orders/orders.module';
-import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PricingModule } from './pricing/pricing.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReplacementsModule } from './replacements/replacements.module';
 import { RevenueModule } from './revenue/revenue.module';
+import { StorageModule } from './storage/storage.module';
 import { SuppressionModule } from './suppression/suppression.module';
 import { UsersModule } from './users/users.module';
 
@@ -30,7 +31,9 @@ import { UsersModule } from './users/users.module';
  *   Phase 3 — UsersModule, ClientsModule, CampaignsModule, LandingPagesModule,
  *             PricingModule (core management)
  *   Phase 4 — IntakeModule (signed lead webhook)
- *   Phase 5 — OrdersModule, PaymentsModule (order lifecycle + Stripe)
+ *   Phase 5 — OrdersModule (off-platform payment via agent → admin verifies
+ *             screenshot → order goes ACTIVE), InvoicesModule (internal PDF),
+ *             StorageModule (Railway volume + signed-URL tokens)
  *   Phase 6 — DistributionModule (the lead distribution engine)
  *   Phase 7 — RealtimeModule (Socket.IO delivery), LeadsModule
  *   Phase 8 — ReplacementsModule (replacement workflow)
@@ -38,7 +41,7 @@ import { UsersModule } from './users/users.module';
  *   Phase 10 — ApiKeysModule (encrypted secrets), ThrottlerModule (rate limit)
  *
  * AuthModule registers the global JwtAuthGuard + RolesGuard.
- * EventEmitterModule lets payments emit order events for the realtime phase.
+ * EventEmitterModule lets orders emit lifecycle events for the realtime phase.
  */
 @Module({
   imports: [
@@ -61,8 +64,9 @@ import { UsersModule } from './users/users.module';
     LandingPagesModule,
     PricingModule,
     IntakeModule,
+    StorageModule,
     OrdersModule,
-    PaymentsModule,
+    InvoicesModule,
     DistributionModule,
     RealtimeModule,
     LeadsModule,

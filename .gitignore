@@ -17,6 +17,11 @@ out/
 # Prisma
 apps/api/prisma/migrations/dev.db*
 
+# Uploaded files (payment-proof screenshots, generated invoice PDFs).
+# Production stores these on the Railway volume; locally they live here.
+apps/api/uploads/
+uploads/
+
 # Logs
 *.log
 npm-debug.log*

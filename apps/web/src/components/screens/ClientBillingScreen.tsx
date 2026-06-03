@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowDownToLine, CreditCard, Receipt, Wallet } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { CreditCard, Download, FileText, Loader2, Receipt, Wallet } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -18,20 +19,12 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { StatGridSkeleton, TableSkeleton } from '@/components/skeletons';
 import { apiGet } from '@/lib/proxy-client';
 
-interface Transaction {
+interface InvoiceRow {
   id: string;
-  order_id: string;
-  stripe_payment_id: string | null;
+  invoice_number: string;
   amount: string;
-  type: 'CHARGE' | 'REFUND' | 'CREDIT';
-  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED';
-  created_at: string;
-  order: {
-    id: string;
-    public_order_id: string;
-    lead_type: string;
-    delivery_mode: string;
-  } | null;
+  issued_at: string | null;
+  order: { public_order_id: string; lead_type: string; delivery_mode: string } | null;
 }
 
 interface OrderSummary {
@@ -39,22 +32,11 @@ interface OrderSummary {
   public_order_id: string;
   total_amount: string;
   status: string;
-  stripe_payment_link: string | null;
   created_at: string;
 }
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-  SUCCEEDED: 'default',
-  PENDING: 'outline',
-  FAILED: 'destructive',
-  CANCELED: 'destructive',
-};
-
-const TYPE_VARIANT: Record<string, 'default' | 'secondary' | 'destructive'> = {
-  CHARGE: 'default',
-  REFUND: 'destructive',
-  CREDIT: 'secondary',
-};
+/** Orders still waiting on payment from the client (pre-activation). */
+const OPEN_STATUSES = new Set(['AWAITING_PAYMENT', 'PROOF_SUBMITTED']);
 
 const money = (n: string | number): string =>
   `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -62,23 +44,24 @@ const moneyShort = (n: number): string =>
   `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
 /**
- * Client billing screen — every transaction on the account, plus a quick
- * orders summary so the buyer can see what's paid, what's pending invoice,
- * and what's been refunded.
+ * Client billing screen. Payment is collected off-platform (the client pays
+ * their agent, who uploads proof for admin verification). This screen shows
+ * issued invoices (with PDF download) plus any orders still awaiting payment.
  */
 export function ClientBillingScreen() {
-  const [txs, setTxs] = useState<Transaction[] | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [t, o] = await Promise.all([
-        apiGet<Transaction[]>('transactions/mine'),
+      const [inv, ord] = await Promise.all([
+        apiGet<InvoiceRow[]>('invoices'),
         apiGet<OrderSummary[]>('orders'),
       ]);
-      setTxs(t);
-      setOrders(o);
+      setInvoices(inv);
+      setOrders(ord);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load billing data');
     }
@@ -88,38 +71,44 @@ export function ClientBillingScreen() {
     void reload();
   }, [reload]);
 
-  // Aggregate spend totals — counted against successful charges only, with
-  // refunds subtracted so the "net spent" tile shows the real cash out.
+  async function downloadInvoice(id: string): Promise<void> {
+    setDownloadingId(id);
+    try {
+      const { url } = await apiGet<{ url: string }>(`invoices/${id}/pdf-url`);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not open the invoice PDF');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   const totals = (() => {
-    if (!txs) return null;
+    if (!invoices || !orders) return null;
     const month = new Date();
     month.setUTCDate(1);
     month.setUTCHours(0, 0, 0, 0);
-    let netAllTime = 0;
-    let netMonth = 0;
-    let pending = 0;
-    for (const t of txs) {
-      const amt = Number(t.amount);
-      const sign = t.type === 'CHARGE' ? 1 : -1;
-      if (t.status === 'SUCCEEDED') {
-        netAllTime += sign * amt;
-        if (new Date(t.created_at) >= month) netMonth += sign * amt;
-      } else if (t.status === 'PENDING') {
-        pending += amt;
-      }
+    let paidMonth = 0;
+    let paidAllTime = 0;
+    for (const inv of invoices) {
+      const amt = Number(inv.amount);
+      paidAllTime += amt;
+      if (inv.issued_at && new Date(inv.issued_at) >= month) paidMonth += amt;
     }
-    const refunded = txs
-      .filter((t) => t.status === 'SUCCEEDED' && t.type === 'REFUND')
-      .reduce((s, t) => s + Number(t.amount), 0);
-    return { netMonth, netAllTime, pending, refunded };
+    const awaiting = orders
+      .filter((o) => OPEN_STATUSES.has(o.status))
+      .reduce((s, o) => s + Number(o.total_amount), 0);
+    return { paidMonth, paidAllTime, awaiting, invoiceCount: invoices.length };
   })();
+
+  const openOrders = (orders ?? []).filter((o) => OPEN_STATUSES.has(o.status));
 
   return (
     <div>
       <PageHeader
         eyebrow="Billing"
         title="Invoices & payments"
-        description="Every transaction on your account. Click an order id to jump to its detail."
+        description="Payment is arranged with your agent. Once verified, your invoice appears here to download."
       />
 
       {error ? (
@@ -132,25 +121,25 @@ export function ClientBillingScreen() {
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
             label="This month"
-            value={moneyShort(totals.netMonth)}
-            hint="Net spend in the current calendar month."
+            value={moneyShort(totals.paidMonth)}
+            hint="Invoiced in the current calendar month."
             icon={Wallet}
             iconClassName="bg-primary/10 text-primary"
           />
           <StatCard
             label="All time"
-            value={moneyShort(totals.netAllTime)}
-            hint={`${money(totals.refunded)} refunded.`}
+            value={moneyShort(totals.paidAllTime)}
+            hint="Total invoiced to date."
             icon={CreditCard}
           />
           <StatCard
-            label="Pending"
-            value={moneyShort(totals.pending)}
-            hint="Awaiting Stripe confirmation."
+            label="Awaiting payment"
+            value={moneyShort(totals.awaiting)}
+            hint="Orders not yet activated."
           />
           <StatCard
-            label="Transactions"
-            value={(txs?.length ?? 0).toLocaleString()}
+            label="Invoices"
+            value={totals.invoiceCount.toLocaleString()}
             hint="On record."
             icon={Receipt}
           />
@@ -160,61 +149,65 @@ export function ClientBillingScreen() {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Transactions</CardTitle>
+            <CardTitle>Invoices</CardTitle>
             <CardDescription>
-              Newest first. SUCCEEDED rows are settled; PENDING rows are awaiting Stripe.
+              Issued once an admin verifies your payment. Newest first.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {txs === null ? (
+            {invoices === null ? (
               <TableSkeleton columns={5} rows={6} />
-            ) : txs.length === 0 ? (
+            ) : invoices.length === 0 ? (
               <EmptyState
                 icon={Receipt}
-                title="No transactions yet"
-                description="Once you pay an invoice the transaction will land here for your records."
+                title="No invoices yet"
+                description="Once a payment is verified, the invoice will land here to download."
               />
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Invoice</TableHead>
                     <TableHead>Order</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">PDF</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {txs.map((t) => (
-                    <TableRow key={t.id}>
+                  {invoices.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-mono text-xs">{inv.invoice_number}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {inv.order?.public_order_id ?? '—'}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground tabular-nums">
-                        {new Date(t.created_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {inv.issued_at
+                          ? new Date(inv.issued_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : '—'}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {t.order?.public_order_id ?? '—'}
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {money(inv.amount)}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={TYPE_VARIANT[t.type] ?? 'secondary'}>
-                          {t.type.toLowerCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANT[t.status] ?? 'outline'}>
-                          {t.status.toLowerCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell
-                        className={`text-right font-medium tabular-nums ${
-                          t.type === 'REFUND' ? 'text-destructive' : 'text-foreground'
-                        }`}
-                      >
-                        {t.type === 'REFUND' ? '−' : ''}
-                        {money(t.amount)}
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={downloadingId === inv.id}
+                          onClick={() => void downloadInvoice(inv.id)}
+                        >
+                          {downloadingId === inv.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Download className="size-3.5" />
+                          )}
+                          PDF
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -226,55 +219,36 @@ export function ClientBillingScreen() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Open invoices</CardTitle>
+            <CardTitle>Awaiting payment</CardTitle>
             <CardDescription>
-              Orders waiting on payment from your side. Click "Pay" to settle in Stripe.
+              Pay your agent (e.g. via WhatsApp) to activate these orders.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {orders === null ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : openOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No orders waiting on payment.</p>
             ) : (
-              (() => {
-                const open = orders.filter(
-                  (o) =>
-                    (o.status === 'INVOICED' || o.status === 'PAYMENT_FAILED') &&
-                    o.stripe_payment_link,
-                );
-                if (open.length === 0) {
-                  return (
-                    <p className="text-sm text-muted-foreground">
-                      No invoices waiting on payment.
-                    </p>
-                  );
-                }
-                return (
-                  <ul className="space-y-2 text-sm">
-                    {open.map((o) => (
-                      <li
-                        key={o.id}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border p-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="font-mono text-xs text-muted-foreground">
-                            {o.public_order_id}
-                          </p>
-                          <p className="font-medium">{money(o.total_amount)}</p>
-                        </div>
-                        <a
-                          href={o.stripe_payment_link ?? '#'}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                        >
-                          <ArrowDownToLine className="size-3.5" />
-                          Pay
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()
+              <ul className="space-y-2 text-sm">
+                {openOrders.map((o) => (
+                  <li
+                    key={o.id}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {o.public_order_id}
+                      </p>
+                      <p className="font-medium">{money(o.total_amount)}</p>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                      <FileText className="size-3.5" />
+                      {o.status === 'PROOF_SUBMITTED' ? 'Verifying' : 'Pay agent'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>

@@ -1,0 +1,48 @@
+/* Leads Portal Bridge — admin styles */
+
+.lpb-wrap .description {
+  max-width: 720px;
+}
+
+.lpb-endpoints code,
+.lpb-log code {
+  font-size: 12px;
+}
+
+.lpb-endpoints .lpb-url code {
+  background: transparent;
+  padding: 0;
+  color: #555;
+}
+
+.lpb-endpoints .lpb-actions a {
+  text-decoration: none;
+}
+.lpb-endpoints .lpb-actions a.lpb-danger {
+  color: #b32d2e;
+}
+
+.lpb-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lpb-pill-ok   { background: #e7f6ec; color: #1d6f33; }
+.lpb-pill-info { background: #e7eefc; color: #1b3a8a; }
+.lpb-pill-warn { background: #fdf3d4; color: #7c5b00; }
+.lpb-pill-err  { background: #fbe5e6; color: #8a1c1d; }
+.lpb-pill-off  { background: #ececec; color: #555; }
+
+.lpb-empty {
+  text-align: center;
+  padding: 24px;
+  color: #888;
+  font-style: italic;
+}
+
+.lpb-form .form-table th { width: 200px; }
+.lpb-log .lpb-response   { max-width: 340px; word-break: break-all; }
