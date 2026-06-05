@@ -1,22 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { DeliveryStatus, type Prisma } from '@prisma/client';
+import { DeliveryStatus, LeadState, type Prisma } from '@prisma/client';
 import { LEAD_ASSIGNED, type LeadAssignedEvent } from '../events/realtime-events';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from './realtime.gateway';
-
-/** Delivery is retried this many times before being marked FAILED. */
-const MAX_DELIVERY_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 5_000;
 
 type AssignmentWithRelations = Prisma.LeadAssignmentGetPayload<{
   include: { lead: true; order: true };
 }>;
 
 /**
- * Pushes assigned leads to the buying client over the socket and confirms
- * delivery. Revenue is booked ONLY once the client acknowledges receipt;
- * failed deliveries are retried, then marked FAILED.
+ * Books delivery for assigned leads.
+ *
+ * A lead assigned to a buying client IS delivered to their account — it shows
+ * up in their My Leads feed and CRM export immediately. So delivery is recorded
+ * (and revenue booked) the moment the distribution engine commits an
+ * assignment; the Socket.IO push is a best-effort *real-time notification* on
+ * top of that, NOT a precondition. (Previously delivery depended on the client's
+ * browser acknowledging a socket push within 5s, so any lead assigned while the
+ * client was offline was wrongly marked FAILED and never booked revenue.)
  */
 @Injectable()
 export class DeliveryService {
@@ -34,9 +36,9 @@ export class DeliveryService {
   }
 
   /**
-   * Attempts one delivery of an assignment. On success: DELIVERED + revenue
-   * booked. On failure: RETRYING (and reschedule) or FAILED after the cap.
-   * Never throws — it is a background worker.
+   * Records delivery for an assignment: DELIVERED + delivered_at + revenue, and
+   * advances the lead lifecycle. Then pushes a best-effort real-time event to
+   * the client's live feed. Never throws — it's a background worker.
    */
   async deliverAssignment(assignmentId: string): Promise<void> {
     try {
@@ -47,67 +49,47 @@ export class DeliveryService {
       if (!assignment) {
         return;
       }
-      // DELIVERED and FAILED are terminal.
-      if (
-        assignment.delivery_status === DeliveryStatus.DELIVERED ||
-        assignment.delivery_status === DeliveryStatus.FAILED
-      ) {
-        return;
+      if (assignment.delivery_status === DeliveryStatus.DELIVERED) {
+        return; // already booked — idempotent
       }
 
-      const acked = await this.gateway.deliverWithAck(
+      await this.markDelivered(assignment);
+
+      // Best-effort live push (live feed + notification bell). If the client is
+      // offline it simply isn't shown in real time — the lead is already in
+      // their account and will appear the next time they load My Leads.
+      this.gateway.emitToPrincipal(
         assignment.client_id,
         'lead.delivered',
         this.buildPayload(assignment),
       );
 
-      if (acked) {
-        await this.markDelivered(assignment);
-        return;
-      }
-      await this.markFailureOrRetry(assignment);
+      this.logger.log(
+        `Assignment ${assignment.id} delivered to client ${assignment.client_id} — revenue booked`,
+      );
     } catch (error) {
       this.logger.error(`Delivery of assignment ${assignmentId} errored`, error as Error);
     }
   }
 
-  /** Delivery confirmed → DELIVERED and, only now, book the revenue. */
+  /** Marks the assignment delivered, books revenue, and advances the lead. */
   private async markDelivered(assignment: AssignmentWithRelations): Promise<void> {
-    await this.prisma.leadAssignment.update({
-      where: { id: assignment.id },
-      data: {
-        delivery_status: DeliveryStatus.DELIVERED,
-        delivered_at: new Date(),
-        revenue: assignment.order.unit_price, // revenue booked on confirmed delivery
-      },
-    });
-    this.logger.log(
-      `Assignment ${assignment.id} delivered to client ${assignment.client_id} — revenue booked`,
-    );
-  }
-
-  private async markFailureOrRetry(assignment: AssignmentWithRelations): Promise<void> {
-    const attempts = assignment.delivery_attempts + 1;
-
-    if (attempts >= MAX_DELIVERY_ATTEMPTS) {
-      await this.prisma.leadAssignment.update({
+    await this.prisma.$transaction([
+      this.prisma.leadAssignment.update({
         where: { id: assignment.id },
-        data: { delivery_status: DeliveryStatus.FAILED, delivery_attempts: attempts },
-      });
-      this.logger.warn(`Assignment ${assignment.id} delivery FAILED after ${attempts} attempts`);
-      return;
-    }
-
-    await this.prisma.leadAssignment.update({
-      where: { id: assignment.id },
-      data: { delivery_status: DeliveryStatus.RETRYING, delivery_attempts: attempts },
-    });
-    this.logger.warn(
-      `Assignment ${assignment.id} delivery attempt ${attempts} failed — retrying in ${RETRY_DELAY_MS}ms`,
-    );
-    // unref() so a pending retry never keeps the process alive on its own.
-    const timer = setTimeout(() => void this.deliverAssignment(assignment.id), RETRY_DELAY_MS);
-    timer.unref();
+        data: {
+          delivery_status: DeliveryStatus.DELIVERED,
+          delivered_at: new Date(),
+          revenue: assignment.order.unit_price, // revenue booked on delivery
+        },
+      }),
+      // Advance the lead lifecycle, but only from ASSIGNED so we never clobber a
+      // REPLACEMENT_REQUESTED / REPLACED / ACCEPTED state set elsewhere.
+      this.prisma.lead.updateMany({
+        where: { id: assignment.lead_id, lead_state: LeadState.ASSIGNED },
+        data: { lead_state: LeadState.DELIVERED },
+      }),
+    ]);
   }
 
   /** The lead payload pushed to the client's live feed. */
