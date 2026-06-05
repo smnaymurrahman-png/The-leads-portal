@@ -34,27 +34,52 @@ class LPB_Adapter_Jet_Form_Builder extends LPB_Adapter {
 			return;
 		}
 
-		// Form ID — the JFB form's post ID. Defensive: different JFB releases
-		// expose it via slightly different members / methods.
-		$form_id = '';
-		if ( isset( $handler->form_id ) ) {
-			$form_id = (string) $handler->form_id;
-		} elseif ( method_exists( $handler, 'get_form_id' ) ) {
-			$form_id = (string) $handler->get_form_id();
-		}
-		if ( '' === $form_id ) {
-			return;
-		}
-
-		// Request payload — all step inputs merged into one assoc array.
+		// Request payload — all step inputs merged into one assoc array. We read
+		// this first because it also carries `__form_id`, our most reliable
+		// fallback for the form id on JFB releases that don't expose it publicly.
 		$request = array();
 		if ( isset( $handler->request_data ) && is_array( $handler->request_data ) ) {
 			$request = $handler->request_data;
 		} elseif ( method_exists( $handler, 'get_request' ) ) {
 			$request = (array) $handler->get_request();
+		} elseif ( isset( $_POST ) && is_array( $_POST ) ) {
+			// Last resort: the raw POST. JFB submits the full form payload here.
+			$request = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security
+		}
+
+		// Form ID — the JFB form's post ID. Different JFB releases expose it via
+		// different members/methods; some keep the property protected (so it's
+		// not readable from here). Fall back to `__form_id` in the request, then
+		// the raw POST, so a property-shape change can't silently drop leads.
+		$form_id = '';
+		if ( isset( $handler->form_id ) && '' !== (string) $handler->form_id ) {
+			$form_id = (string) $handler->form_id;
+		} elseif ( method_exists( $handler, 'get_form_id' ) && '' !== (string) $handler->get_form_id() ) {
+			$form_id = (string) $handler->get_form_id();
+		} else {
+			foreach ( array( '__form_id', '_jet_engine_booking_form_id', 'form_id' ) as $key ) {
+				if ( ! empty( $request[ $key ] ) ) {
+					$form_id = (string) $request[ $key ];
+					break;
+				}
+			}
+			if ( '' === $form_id && ! empty( $_POST['__form_id'] ) ) {
+				$form_id = sanitize_text_field( wp_unslash( $_POST['__form_id'] ) ); // phpcs:ignore WordPress.Security
+			}
+		}
+
+		if ( '' === $form_id ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'LPB JFB: after-send fired but could not resolve a form id; payload keys: ' . implode( ',', array_keys( $request ) ) );
+			}
+			return;
 		}
 
 		$fields = $this->filter_internal_keys( $request );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'LPB JFB: after-send for form ' . $form_id . ' — field keys: ' . implode( ',', array_keys( $fields ) ) );
+		}
 
 		// Stable submission_id: JFB doesn't expose its own entry id at this
 		// hook, so we derive one from form_id + payload hash + ms timestamp.
