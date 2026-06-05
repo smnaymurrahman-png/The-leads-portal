@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -11,12 +11,45 @@ import {
 } from '@prisma/client';
 import { isEmail } from 'class-validator';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { encryptField } from '../common/field-crypto';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { LEAD_VALID, type LeadValidEvent } from '../events/lead-events';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeliverabilityService } from './deliverability.service';
 import type { IntakeLeadDto } from './dto/intake-lead.dto';
 import { verifySignature } from './signature.util';
+
+/**
+ * Pairs of (first-name, last-name) field aliases the intake recognises when a
+ * landing page's `field_map` doesn't explicitly map `full_name`. Lets Payday's
+ * FNAME/LNAME and Homeowner's First_Name_01/Last_Name_01 forms work without
+ * any field_map gymnastics.
+ */
+const NAME_PAIR_ALIASES: ReadonlyArray<readonly [string, string]> = [
+  ['fname', 'lname'],
+  ['first_name', 'last_name'],
+  ['first_name_01', 'last_name_01'],
+  ['firstname', 'lastname'],
+  ['given_name', 'family_name'],
+];
+
+/**
+ * Sensitive-field key patterns (case-insensitive, normalised to snake_case).
+ * Any field in the intake payload whose normalised name matches one of these
+ * is AES-256-GCM encrypted before being persisted in `Lead.qualification`.
+ * Adding a pattern here is the supported way to grow the sensitive set.
+ */
+const SENSITIVE_KEY_PATTERN =
+  /^(ssn|social_security(_number)?|ss_num|account_(num|number)|acct_(num|number)|routing_(num|number)|dl_(num|number)|drivers?_(license|lic_num|lic_number))$/;
+
+function isSensitiveKey(key: string): boolean {
+  const normalised = key.toLowerCase().replace(/[\s-]+/g, '_');
+  return SENSITIVE_KEY_PATTERN.test(normalised);
+}
+
+function stringOrEmpty(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 /** Assumed dialing region for phone numbers that arrive without a + prefix. */
 const DEFAULT_REGION = 'US';
@@ -55,6 +88,8 @@ export interface IntakeResult {
 
 @Injectable()
 export class IntakeService {
+  private readonly logger = new Logger(IntakeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
@@ -149,8 +184,46 @@ export class IntakeService {
       }
     }
 
+    // Fallback for forms that split name into first + last (Payday: fname/lname,
+    // Homeowner: first_name_01/last_name_01, …). If no explicit `full_name`
+    // mapping resolved a value, try the known aliases.
+    if (!out.full_name) {
+      for (const [firstKey, lastKey] of NAME_PAIR_ALIASES) {
+        const first = stringOrEmpty(data[firstKey]);
+        const last = stringOrEmpty(data[lastKey]);
+        if (first || last) {
+          out.full_name = [first, last].filter(Boolean).join(' ').trim() || undefined;
+          break;
+        }
+      }
+    }
+
     if (out.email) {
       out.email = out.email.toLowerCase();
+    }
+    return out;
+  }
+
+  /**
+   * AES-256-GCM encrypts any value whose key matches `SENSITIVE_KEY_PATTERN`.
+   * Returns a shallow clone of `data` with the sensitive values replaced by
+   * `enc:v1:…` ciphertext strings — safe to drop into `qualification` as JSON.
+   */
+  private encryptSensitive(data: Record<string, unknown>): Record<string, unknown> {
+    const secret = this.config.get('ENCRYPTION_KEY', { infer: true });
+    const out: Record<string, unknown> = { ...data };
+    for (const [key, value] of Object.entries(out)) {
+      if (typeof value !== 'string' || value === '' || !isSensitiveKey(key)) {
+        continue;
+      }
+      try {
+        out[key] = encryptField(value, secret);
+      } catch (error) {
+        // Don't leak the value into the exception. Log and drop the field
+        // entirely — better to lose one column than to store it in clear.
+        this.logger.error(`Failed to encrypt sensitive field "${key}"`, error as Error);
+        out[key] = null;
+      }
     }
     return out;
   }
@@ -237,7 +310,7 @@ export class IntakeService {
           country: fields.country,
           state: fields.state,
           zip: fields.zip,
-          qualification: dto.data as Prisma.InputJsonValue,
+          qualification: this.encryptSensitive(dto.data) as Prisma.InputJsonValue,
           consent_text: consent?.text,
           consent_ip: consent?.ip,
           consent_at: consent?.text ? new Date() : null,

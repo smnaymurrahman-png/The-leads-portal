@@ -90,6 +90,18 @@ enum PaymentMethod {
   OTHER
 }
 
+/// Buyer-facing outreach state on a delivered lead — editable from the Leads
+/// sheet by the CLIENT that bought it (and only that client; the row lives on
+/// the assignment, not the lead, so each of up to 4 shared-lead buyers tracks
+/// their own).
+enum FollowupStatus {
+  NEW
+  CALLED
+  NO_ANSWER
+  CONVERTED
+  DEAD
+}
+
 enum AssignmentType {
   AUTO
   MANUAL
@@ -168,7 +180,8 @@ model User {
   payment_uploads       Order[]          @relation("OrderPaymentUploader")
   cancelled_orders      Order[]          @relation("OrderCanceller")
   issued_invoices       Invoice[]        @relation("InvoiceIssuer")
-  assignments           LeadAssignment[]
+  assignments           LeadAssignment[] @relation("AssignmentAssigner")
+  followup_updates      LeadAssignment[] @relation("AssignmentFollowupUpdater")
   reviewed_replacements Replacement[]
   commissions           Commission[]
   audit_logs            AuditLog[]
@@ -383,19 +396,67 @@ model LeadAssignment {
   /// Revenue is booked only once delivery is confirmed by the client.
   revenue           Decimal?       @db.Decimal(10, 2)
   replacement_code  String?        @unique
-  created_at        DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime       @updatedAt @db.Timestamptz(6)
 
-  lead     Lead   @relation(fields: [lead_id], references: [id])
-  order    Order  @relation(fields: [order_id], references: [id])
-  client   Client @relation(fields: [client_id], references: [id])
-  assigner User?  @relation(fields: [assigned_by], references: [id])
+  // ── Client-side follow-up tracking (editable from the Leads sheet) ────────
+  followup_status     FollowupStatus @default(NEW)
+  followup_note       String?
+  followup_updated_at DateTime?      @db.Timestamptz(6)
+  followup_updated_by String?        @db.Uuid
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  lead             Lead   @relation(fields: [lead_id], references: [id])
+  order            Order  @relation(fields: [order_id], references: [id])
+  client           Client @relation(fields: [client_id], references: [id])
+  assigner         User?  @relation("AssignmentAssigner", fields: [assigned_by], references: [id])
+  followup_updater User?  @relation("AssignmentFollowupUpdater", fields: [followup_updated_by], references: [id])
 
   @@unique([lead_id, order_id])
   @@index([lead_id])
   @@index([order_id])
   @@index([client_id])
+  @@index([client_id, followup_status])
   @@map("lead_assignments")
+}
+
+/// Data-driven column schema for the Leads sheet. One row per visible column
+/// per LeadType. Admins can re-order / rename / add columns from the UI later
+/// without redeploying. The web `LeadsSheet` reads `GET /api/lead-type-columns`
+/// to render headers + bind cells.
+///
+/// `source` is a dotted path the renderer resolves at display time:
+///   lead.<canonical_col>            — Lead.full_name / email / phone / ...
+///   qualification.<key>             — anywhere in Lead.qualification JSON
+///   system.<key>                    — public_lead_id / captured_at / lead_state / landing_page / ...
+///   assignment.<key>                — delivery_status / delivered_at / followup_status
+///   order.public_order_id
+///   replacement.status
+///
+/// `data_type` decides cell rendering: string | phone | email | date | datetime
+///                                     | money | integer | boolean | enum
+/// `sensitive=true` → cell is masked (kind from `mask_kind`) unless explicitly
+/// revealed; reveal is audit-logged. Sensitive fields are stored encrypted
+/// in `qualification` (AES-256-GCM, key from ENCRYPTION_KEY).
+model LeadTypeColumn {
+  id              String   @id @default(uuid()) @db.Uuid
+  lead_type       LeadType
+  position        Int
+  field_key       String
+  label           String
+  source          String
+  data_type       String   @default("string")
+  sensitive       Boolean  @default(false)
+  /// One of: ssn | account | routing | dl | last4 | full (only used when sensitive=true).
+  mask_kind       String?
+  default_visible Boolean  @default(true)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([lead_type, position])
+  @@unique([lead_type, field_key])
+  @@index([lead_type, default_visible])
+  @@map("lead_type_columns")
 }
 
 model Replacement {

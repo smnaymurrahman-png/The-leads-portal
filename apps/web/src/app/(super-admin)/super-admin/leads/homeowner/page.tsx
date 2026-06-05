@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { LeadsScreen } from '@/components/screens/LeadsScreen';
+import { LeadsSheetScreen } from '@/components/screens/LeadsSheetScreen';
 import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -9,5 +9,5 @@ export default async function Page() {
   if (!session) {
     redirect('/login');
   }
-  return <LeadsScreen lockedLeadType="HOMEOWNER" />;
+  return <LeadsSheetScreen leadType="HOMEOWNER" />;
 }

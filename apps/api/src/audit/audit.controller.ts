@@ -14,4 +14,10 @@ export class AuditController {
   list(@Query() query: ListAuditQueryDto) {
     return this.audit.list(query);
   }
+
+  /** Distinct actions + actors in the same filter window. */
+  @Get('summary')
+  summary(@Query() query: ListAuditQueryDto) {
+    return this.audit.summary(query);
+  }
 }

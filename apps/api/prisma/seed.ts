@@ -20,6 +20,7 @@ import {
   Role,
 } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { seedLeadTypeColumns } from './lead-type-columns';
 
 const prisma = new PrismaClient();
 
@@ -192,6 +193,9 @@ async function main(): Promise<void> {
       await prisma.suppressionList.create({ data: entry });
     }
   }
+
+  // ── Leads-sheet column schemas (one row per visible column per LeadType) ──
+  await seedLeadTypeColumns(prisma);
 
   /* eslint-disable no-console */
   console.log('✔ Seed complete');
