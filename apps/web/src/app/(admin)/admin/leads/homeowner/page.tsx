@@ -9,5 +9,5 @@ export default async function Page() {
   if (!session) {
     redirect('/login');
   }
-  return <LeadsSheetScreen leadType="HOMEOWNER" />;
+  return <LeadsSheetScreen leadType="HOMEOWNER" manage />;
 }

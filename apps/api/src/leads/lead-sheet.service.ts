@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  type LeadAssignment,
+  type LeadState,
   type LeadTypeColumn,
   LeadType,
   Prisma,
@@ -38,9 +38,12 @@ export interface SheetCell {
 }
 
 export interface SheetRow {
-  assignmentId: string;
+  /** Null for leads that have no assignment yet (e.g. UNSOLD_POOL). */
+  assignmentId: string | null;
   leadId: string;
   publicLeadId: string;
+  /** Lead lifecycle state — drives the staff assignment controls. */
+  leadState: string;
   followupStatus: string;
   followupNote: string | null;
   followupUpdatedAt: Date | null;
@@ -59,10 +62,7 @@ export interface SheetPayload {
 const PAGE_SIZE = 200;
 const PAGE_SIZE_MAX = 1000;
 
-/**
- * The Prisma include block needed to resolve every supported source path.
- * Centralised so the row query and the export query stay consistent.
- */
+/** Assignment-centric include (CLIENT / AGENT views + reveal). */
 const ASSIGNMENT_INCLUDE = {
   lead: {
     include: {
@@ -78,6 +78,50 @@ const ASSIGNMENT_INCLUDE = {
 } satisfies Prisma.LeadAssignmentInclude;
 
 type LoadedAssignment = Prisma.LeadAssignmentGetPayload<{ include: typeof ASSIGNMENT_INCLUDE }>;
+
+/** Lead-centric include (ADMIN / SUPER_ADMIN — shows unassigned leads too). */
+const LEAD_INCLUDE = {
+  landing_page: { select: { id: true, name: true } },
+  replacements_as_original: {
+    orderBy: { created_at: 'desc' as const },
+    take: 1,
+    select: { status: true },
+  },
+  assignments: {
+    orderBy: { created_at: 'desc' as const },
+    take: 1,
+    include: { order: { select: { public_order_id: true } } },
+  },
+} satisfies Prisma.LeadInclude;
+
+type LoadedLead = Prisma.LeadGetPayload<{ include: typeof LEAD_INCLUDE }>;
+
+/** Minimal assignment shape the row builder needs (null when unassigned). */
+interface AssignmentLite {
+  id: string;
+  delivery_status: string;
+  delivered_at: Date | null;
+  followup_status: string;
+  followup_note: string | null;
+  followup_updated_at: Date | null;
+  order: { public_order_id: string } | null;
+}
+
+/** A lead + its latest assignment (if any) — the unit the sheet renders. */
+interface RowCtx {
+  // Loosely typed so both Prisma include shapes are assignable.
+  lead: {
+    id: string;
+    public_lead_id: string;
+    lead_state: string;
+    captured_at: Date | null;
+    qualification: Prisma.JsonValue | null;
+    landing_page: { name: string } | null;
+    replacements_as_original: { status: string }[];
+    [k: string]: unknown;
+  };
+  assignment: AssignmentLite | null;
+}
 
 @Injectable()
 export class LeadSheetService {
@@ -104,58 +148,132 @@ export class LeadSheetService {
   async sheet(
     actor: AuthPrincipal,
     leadType: LeadType,
-    opts: { cursor?: string; limit?: number } = {},
+    opts: { cursor?: string; limit?: number; state?: string } = {},
   ): Promise<SheetPayload> {
     const take = Math.min(opts.limit ?? PAGE_SIZE, PAGE_SIZE_MAX);
-    const where = this.assignmentWhere(actor, leadType);
-
-    const [columns, total, assignments] = await Promise.all([
+    const [columns, loaded] = await Promise.all([
       this.columnsFor(leadType),
+      this.loadContexts(actor, leadType, { take, cursor: opts.cursor, state: opts.state }),
+    ]);
+
+    return {
+      leadType,
+      columns,
+      rows: loaded.ctxs.map((ctx) => this.buildRow(ctx, columns)),
+      total: loaded.total,
+      nextCursor: loaded.nextCursor,
+    };
+  }
+
+  // ── CSV export ────────────────────────────────────────────────────────────
+
+  async exportCsv(actor: AuthPrincipal, leadType: LeadType, state?: string): Promise<string> {
+    const [columns, loaded] = await Promise.all([
+      this.columnsFor(leadType),
+      this.loadContexts(actor, leadType, { take: 10_000, state }),
+    ]);
+
+    const header = columns.map((c) => csvEscape(c.label)).join(',');
+    const body = loaded.ctxs
+      .map((ctx) => {
+        const row = this.buildRow(ctx, columns);
+        return columns.map((c) => csvEscape(row.values[c.field_key]?.value ?? '')).join(',');
+      })
+      .join('\n');
+
+    return `${header}\n${body}\n`;
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────────────
+
+  /**
+   * Staff (ADMIN/SUPER_ADMIN) load lead-centric — every lead of the type in
+   * scope, including unassigned ones (UNSOLD_POOL) so they can be assigned.
+   * CLIENT/AGENT load assignment-centric — only leads delivered to them.
+   */
+  private async loadContexts(
+    actor: AuthPrincipal,
+    leadType: LeadType,
+    opts: { take: number; cursor?: string; state?: string },
+  ): Promise<{ total: number; ctxs: RowCtx[]; nextCursor: string | null }> {
+    const { take, cursor, state } = opts;
+    const isStaff = actor.role === Role.SUPER_ADMIN || actor.role === Role.ADMIN;
+
+    if (isStaff) {
+      const where: Prisma.LeadWhereInput = {
+        lead_type: leadType,
+        ...(state ? { lead_state: state as LeadState } : {}),
+      };
+      const [total, leads] = await Promise.all([
+        this.prisma.lead.count({ where }),
+        this.prisma.lead.findMany({
+          where,
+          include: LEAD_INCLUDE,
+          orderBy: [{ captured_at: 'desc' }, { id: 'desc' }],
+          take: take + 1,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+      ]);
+      const hasMore = leads.length > take;
+      const page = hasMore ? leads.slice(0, take) : leads;
+      return {
+        total,
+        nextCursor: hasMore ? page[page.length - 1].id : null,
+        ctxs: page.map((l) => this.ctxFromLead(l)),
+      };
+    }
+
+    const where = this.assignmentWhere(actor, leadType, state);
+    const [total, assignments] = await Promise.all([
       this.prisma.leadAssignment.count({ where }),
       this.prisma.leadAssignment.findMany({
         where,
         include: ASSIGNMENT_INCLUDE,
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         take: take + 1,
-        ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       }),
     ]);
-
     const hasMore = assignments.length > take;
-    const pageRows = hasMore ? assignments.slice(0, take) : assignments;
-    const rows = pageRows.map((a) => this.buildRow(a, columns));
-
+    const page = hasMore ? assignments.slice(0, take) : assignments;
     return {
-      leadType,
-      columns,
-      rows,
       total,
-      nextCursor: hasMore ? pageRows[pageRows.length - 1].id : null,
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+      ctxs: page.map((a) => this.ctxFromAssignment(a)),
     };
   }
 
-  // ── CSV export ────────────────────────────────────────────────────────────
+  private ctxFromLead(l: LoadedLead): RowCtx {
+    const a = l.assignments[0];
+    return {
+      lead: l as unknown as RowCtx['lead'],
+      assignment: a
+        ? {
+            id: a.id,
+            delivery_status: a.delivery_status,
+            delivered_at: a.delivered_at,
+            followup_status: a.followup_status,
+            followup_note: a.followup_note,
+            followup_updated_at: a.followup_updated_at,
+            order: a.order,
+          }
+        : null,
+    };
+  }
 
-  async exportCsv(actor: AuthPrincipal, leadType: LeadType): Promise<string> {
-    const [columns, assignments] = await Promise.all([
-      this.columnsFor(leadType),
-      this.prisma.leadAssignment.findMany({
-        where: this.assignmentWhere(actor, leadType),
-        include: ASSIGNMENT_INCLUDE,
-        orderBy: { created_at: 'desc' },
-        take: 10_000, // hard cap — UI warns above this; sensible for now
-      }),
-    ]);
-
-    const header = columns.map((c) => csvEscape(c.label)).join(',');
-    const body = assignments
-      .map((a) => {
-        const row = this.buildRow(a, columns);
-        return columns.map((c) => csvEscape(row.values[c.field_key]?.value ?? '')).join(',');
-      })
-      .join('\n');
-
-    return `${header}\n${body}\n`;
+  private ctxFromAssignment(a: LoadedAssignment): RowCtx {
+    return {
+      lead: a.lead as unknown as RowCtx['lead'],
+      assignment: {
+        id: a.id,
+        delivery_status: a.delivery_status,
+        delivered_at: a.delivered_at,
+        followup_status: a.followup_status,
+        followup_note: a.followup_note,
+        followup_updated_at: a.followup_updated_at,
+        order: a.order,
+      },
+    };
   }
 
   // ── Reveal sensitive cells ────────────────────────────────────────────────
@@ -183,6 +301,7 @@ export class LeadSheetService {
     }
     this.assertCanAccess(actor, assignment);
 
+    const ctx = this.ctxFromAssignment(assignment);
     const columns = await this.prisma.leadTypeColumn.findMany({
       where: {
         lead_type: assignment.lead.lead_type,
@@ -194,11 +313,10 @@ export class LeadSheetService {
 
     for (const col of columns) {
       if (!col.sensitive) {
-        // Don't enable bulk de-mask of non-sensitive columns through this path
-        // — refuse, so the reveal endpoint stays narrow.
+        // Keep the reveal endpoint narrow — refuse non-sensitive columns.
         continue;
       }
-      const raw = this.resolveRaw(col, assignment);
+      const raw = this.resolveRaw(col, ctx);
       out[col.field_key] = raw == null ? null : isEncryptedField(raw) ? decryptField(raw, secret) : raw;
     }
 
@@ -239,9 +357,6 @@ export class LeadSheetService {
         followup_status: status as Prisma.EnumFollowupStatusFieldUpdateOperationsInput['set'],
         followup_note: note,
         followup_updated_at: new Date(),
-        // For CLIENT actors, `followup_updated_by` refers to the User table.
-        // Clients aren't Users, so we leave it null and rely on the audit log
-        // (below) to credit the change to the CLIENT principal.
         followup_updated_by: null,
       },
     });
@@ -259,18 +374,19 @@ export class LeadSheetService {
 
   // ── Row building ──────────────────────────────────────────────────────────
 
-  private buildRow(assignment: LoadedAssignment, columns: LeadTypeColumn[]): SheetRow {
+  private buildRow(ctx: RowCtx, columns: LeadTypeColumn[]): SheetRow {
     const values: Record<string, SheetCell> = {};
     for (const col of columns) {
-      values[col.field_key] = this.cellFor(col, assignment);
+      values[col.field_key] = this.cellFor(col, ctx);
     }
     return {
-      assignmentId: assignment.id,
-      leadId: assignment.lead.id,
-      publicLeadId: assignment.lead.public_lead_id,
-      followupStatus: assignment.followup_status,
-      followupNote: assignment.followup_note,
-      followupUpdatedAt: assignment.followup_updated_at,
+      assignmentId: ctx.assignment?.id ?? null,
+      leadId: ctx.lead.id,
+      publicLeadId: ctx.lead.public_lead_id,
+      leadState: ctx.lead.lead_state,
+      followupStatus: ctx.assignment?.followup_status ?? 'NEW',
+      followupNote: ctx.assignment?.followup_note ?? null,
+      followupUpdatedAt: ctx.assignment?.followup_updated_at ?? null,
       values,
     };
   }
@@ -279,15 +395,13 @@ export class LeadSheetService {
    * Resolves a column's `source` path to a displayable cell — masked when
    * the column is sensitive, formatted by `data_type` otherwise.
    */
-  private cellFor(col: LeadTypeColumn, assignment: LoadedAssignment): SheetCell {
-    const raw = this.resolveRaw(col, assignment);
+  private cellFor(col: LeadTypeColumn, ctx: RowCtx): SheetCell {
+    const raw = this.resolveRaw(col, ctx);
     if (raw == null) {
       return { value: null, sensitive: col.sensitive };
     }
 
     if (col.sensitive) {
-      // Don't ship plaintext for sensitive cells — even if the stored value
-      // happens to be plaintext (legacy). Always mask the display.
       const secret = this.config.get('ENCRYPTION_KEY', { infer: true });
       const plain = isEncryptedField(raw) ? safeDecrypt(raw, secret) : raw;
       return {
@@ -300,38 +414,39 @@ export class LeadSheetService {
   }
 
   /** Walks the source path. Returns the raw stored value (may be encrypted). */
-  private resolveRaw(col: LeadTypeColumn, a: LoadedAssignment): string | null {
+  private resolveRaw(col: LeadTypeColumn, ctx: RowCtx): string | null {
     const [scope, ...rest] = col.source.split('.');
     const key = rest.join('.');
+    const { lead, assignment } = ctx;
     switch (scope) {
       case 'lead': {
-        const lead = a.lead as Record<string, unknown>;
-        return toRaw(lead[key]);
+        return toRaw((lead as Record<string, unknown>)[key]);
       }
       case 'qualification': {
-        const q = a.lead.qualification as Record<string, unknown> | null;
+        const q = lead.qualification as Record<string, unknown> | null;
         if (!q) return null;
         return toRaw(q[key]);
       }
       case 'system':
         switch (key) {
-          case 'public_lead_id': return a.lead.public_lead_id;
-          case 'captured_at':    return a.lead.captured_at?.toISOString() ?? null;
-          case 'lead_state':     return a.lead.lead_state;
-          case 'landing_page':   return a.lead.landing_page?.name ?? null;
+          case 'public_lead_id': return lead.public_lead_id;
+          case 'captured_at':    return lead.captured_at?.toISOString() ?? null;
+          case 'lead_state':     return lead.lead_state;
+          case 'landing_page':   return lead.landing_page?.name ?? null;
           default:               return null;
         }
       case 'assignment':
+        if (!assignment) return null;
         switch (key) {
-          case 'delivery_status':  return a.delivery_status;
-          case 'delivered_at':     return a.delivered_at?.toISOString() ?? null;
-          case 'followup_status':  return a.followup_status;
+          case 'delivery_status':  return assignment.delivery_status;
+          case 'delivered_at':     return assignment.delivered_at?.toISOString() ?? null;
+          case 'followup_status':  return assignment.followup_status;
           default:                 return null;
         }
       case 'order':
-        return key === 'public_order_id' ? a.order.public_order_id : null;
+        return key === 'public_order_id' ? assignment?.order?.public_order_id ?? null : null;
       case 'replacement': {
-        const r = a.lead.replacements_as_original[0];
+        const r = lead.replacements_as_original[0];
         return key === 'status' ? r?.status ?? null : null;
       }
       default:
@@ -341,14 +456,17 @@ export class LeadSheetService {
 
   // ── Scoping ───────────────────────────────────────────────────────────────
 
-  private assignmentWhere(actor: AuthPrincipal, leadType: LeadType): Prisma.LeadAssignmentWhereInput {
-    const base: Prisma.LeadAssignmentWhereInput = {
-      lead: { lead_type: leadType },
+  private assignmentWhere(
+    actor: AuthPrincipal,
+    leadType: LeadType,
+    state?: string,
+  ): Prisma.LeadAssignmentWhereInput {
+    const leadFilter: Prisma.LeadWhereInput = {
+      lead_type: leadType,
+      ...(state ? { lead_state: state as LeadState } : {}),
     };
+    const base: Prisma.LeadAssignmentWhereInput = { lead: leadFilter };
     switch (actor.role) {
-      case Role.SUPER_ADMIN:
-      case Role.ADMIN:
-        return base;
       case Role.AGENT:
         return { ...base, client: { agent_id: actor.id } };
       case Role.CLIENT:
@@ -362,7 +480,6 @@ export class LeadSheetService {
     if (actor.role === Role.SUPER_ADMIN || actor.role === Role.ADMIN) return;
     if (actor.role === Role.CLIENT && assignment.client_id === actor.id) return;
     if (actor.role === Role.AGENT) {
-      // Defer to the ownership service to check agent-owns-client.
       void this.ownership.assertCanAccessClient(actor, assignment.client_id);
       return;
     }
@@ -391,13 +508,11 @@ function safeDecrypt(encoded: string, secret: string): string {
 function formatValue(raw: string, dataType: string): string {
   switch (dataType) {
     case 'money':
-      // Already stored as a number-ish string; render with $ prefix if missing.
       return raw.startsWith('$') ? raw : `$${raw}`;
     case 'boolean':
       return raw === 'true' || raw === '1' || raw.toLowerCase() === 'yes' ? 'Yes' : 'No';
     case 'date':
     case 'datetime':
-      // ISO 8601 strings round-trip fine to the browser; format client-side.
       return raw;
     default:
       return raw;

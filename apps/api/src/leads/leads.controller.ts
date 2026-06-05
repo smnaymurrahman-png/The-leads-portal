@@ -57,11 +57,13 @@ export class LeadsController {
     @Query('lead_type') leadType?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('state') state?: string,
   ) {
     const lt = requireLeadType(leadType);
     return this.sheetSvc.sheet(actor, lt, {
       cursor: cursor || undefined,
       limit: limit ? Number(limit) : undefined,
+      state: state || undefined,
     });
   }
 
@@ -73,9 +75,10 @@ export class LeadsController {
     @CurrentUser() actor: AuthPrincipal,
     @Query('lead_type') leadType: string | undefined,
     @Res() res: Response,
+    @Query('state') state?: string,
   ): Promise<void> {
     const lt = requireLeadType(leadType);
-    const csv = await this.sheetSvc.exportCsv(actor, lt);
+    const csv = await this.sheetSvc.exportCsv(actor, lt, state || undefined);
     const filename = `leads-${lt.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
