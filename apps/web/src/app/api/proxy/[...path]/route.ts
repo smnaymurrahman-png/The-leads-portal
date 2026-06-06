@@ -59,4 +59,10 @@ async function forward(request: Request, ctx: Ctx): Promise<NextResponse> {
   });
 }
 
-export { forward as GET, forward as POST, forward as PATCH, forward as PUT };
+export {
+  forward as GET,
+  forward as POST,
+  forward as PATCH,
+  forward as PUT,
+  forward as DELETE,
+};
