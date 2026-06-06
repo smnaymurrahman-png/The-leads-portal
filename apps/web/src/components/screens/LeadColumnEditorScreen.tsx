@@ -399,6 +399,7 @@ function ColumnFormDialog({
     setError(null);
     try {
       await onSave(state);
+      onOpenChange(false); // close on success — otherwise the dialog just sits there
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
