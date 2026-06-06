@@ -136,7 +136,7 @@ export function AssignLeadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             Assign {leads.length === 1 ? 'lead' : `${leads.length} leads`} to an order

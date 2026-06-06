@@ -525,7 +525,7 @@ function UploadProofDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Upload payment proof</DialogTitle>
           <DialogDescription>
@@ -665,7 +665,7 @@ function ReviewPaymentDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Review payment</DialogTitle>
           <DialogDescription>

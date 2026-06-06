@@ -187,7 +187,7 @@ export function BulkImportDialog({ landingPage }: { landingPage: LandingPage }) 
           </Button>
         }
       />
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Bulk import leads</DialogTitle>
           <DialogDescription>
