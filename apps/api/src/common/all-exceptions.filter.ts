@@ -28,16 +28,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const isHttp = exception instanceof HttpException;
     const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    // TEMP diagnostic — surface the underlying error on 500s so we can see what
-    // is actually being thrown (remove once the delete 500 is understood).
-    const code = (exception as { code?: unknown })?.code;
-    const detail =
-      exception instanceof Error
-        ? `${exception.name}${code ? ` [${String(code)}]` : ''}: ${exception.message}`
-        : String(exception);
     const body = isHttp
       ? exception.getResponse()
-      : { statusCode: status, message: 'Internal server error', detail };
+      : { statusCode: status, message: 'Internal server error' };
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(`${request.method} ${request.originalUrl} → ${status}`, exception as Error);

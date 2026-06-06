@@ -11,6 +11,13 @@ const logger = new Logger('deleteOrConflict');
  */
 const REFERENCED_CODES: ReadonlySet<string> = new Set(['P2003', 'P2014']);
 
+/** The friendly 409 we return whenever a row is still referenced. */
+function conflict(entityName: string): ConflictException {
+  return new ConflictException(
+    `Can't delete this ${entityName} — other records still reference it. Deactivate it instead.`,
+  );
+}
+
 /**
  * Wrap a Prisma delete so a constraint violation surfaces as a friendly
  * 409 instead of a server crash. Suggests the safe alternative
@@ -28,16 +35,21 @@ export async function deleteOrConflict<T>(
         throw new NotFoundException(`${entityName} not found`);
       }
       if (REFERENCED_CODES.has(error.code)) {
-        throw new ConflictException(
-          `Can't delete this ${entityName} — other records still reference it. Deactivate it instead.`,
-        );
+        throw conflict(entityName);
       }
       // Any other known Prisma error on a delete is still almost certainly a
       // constraint problem — log the code and return a 409 rather than a 500.
       logger.warn(`delete ${entityName} failed with Prisma ${error.code}: ${error.message}`);
-      throw new ConflictException(
-        `Can't delete this ${entityName} — it's still referenced by other records (${error.code}). Deactivate it instead.`,
-      );
+      throw conflict(entityName);
+    }
+    // Required relations default to ON DELETE RESTRICT. Postgres raises that as
+    // code 23001, which Prisma does NOT map to P2003 — it comes back as an
+    // UnknownRequestError. Detect the FK message and treat it as a conflict.
+    if (
+      error instanceof Prisma.PrismaClientUnknownRequestError &&
+      /foreign key constraint/i.test(error.message)
+    ) {
+      throw conflict(entityName);
     }
     // Truly unexpected — log the type so it shows up in the server logs.
     logger.error(
