@@ -42,15 +42,18 @@ const SYSTEM_COLUMNS: ColumnSpec[] = [
   { field_key: 'followup',      label: 'Follow-up',     source: 'assignment.followup_status', data_type: 'enum' },
 ];
 
-/** Solar — 11 form columns (from the user's spec). */
+/**
+ * Solar — 11 form columns. Sources point at the real WordPress (JetFormBuilder)
+ * field keys the Solar form actually submits into `qualification`.
+ */
 const SOLAR_COLUMNS: ColumnSpec[] = [
   { field_key: 'home_address',      label: 'Home Address',           source: 'lead.address' },
-  { field_key: 'property_type',     label: 'Residential/Commercial', source: 'qualification.property_type', data_type: 'enum' },
-  { field_key: 'monthly_bill',      label: 'Utility Bill',           source: 'qualification.monthly_bill', data_type: 'money' },
-  { field_key: 'roof_type',         label: 'Roof Type',              source: 'qualification.roof_type', data_type: 'enum' },
+  { field_key: 'property_type',     label: 'Residential/Commercial', source: 'qualification.is_this_residential_or_commercial', data_type: 'enum' },
+  { field_key: 'monthly_bill',      label: 'Utility Bill',           source: 'qualification.utility_bill_of_client', data_type: 'money' },
+  { field_key: 'roof_type',         label: 'Roof Type',              source: 'qualification.describeyourrooftype', data_type: 'enum' },
   { field_key: 'credit_score',      label: 'Credit Score',           source: 'qualification.credit_score', data_type: 'string' },
-  { field_key: 'own_home',          label: 'Own Home?',              source: 'qualification.own_home', data_type: 'enum' },
-  { field_key: 'home_age',          label: 'Home Age',               source: 'qualification.home_age', data_type: 'string' },
+  { field_key: 'own_home',          label: 'Own Home?',              source: 'qualification.doyouownthishome', data_type: 'enum' },
+  { field_key: 'home_age',          label: 'Home Age',               source: 'qualification.how_old_is_your_home', data_type: 'string' },
   { field_key: 'full_name',         label: 'Full Name',              source: 'lead.full_name' },
   { field_key: 'email',             label: 'Email Address',          source: 'lead.email', data_type: 'email' },
   { field_key: 'phone',             label: 'Phone Number',           source: 'lead.phone', data_type: 'phone' },
