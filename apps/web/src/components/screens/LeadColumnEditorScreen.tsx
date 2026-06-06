@@ -412,7 +412,7 @@ function ColumnFormDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="wrap-anywhere">
             Source values:&nbsp;
             <code className="text-xs">lead.&lt;col&gt;</code>,&nbsp;
             <code className="text-xs">qualification.&lt;key&gt;</code>,&nbsp;
