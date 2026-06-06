@@ -629,13 +629,17 @@ function SheetTable(props: SheetTableProps) {
                       key={c.id}
                       className={cn(
                         'whitespace-nowrap border-b border-border px-3 py-2',
-                        idx === 0 && 'sticky left-0 z-10 shadow-[1px_0_0_var(--border)]',
+                        // Frozen first column: opaque bg-card base so horizontally
+                        // scrolled cells never show through. The zebra/selection
+                        // tint rides on a ::before overlay layered between the
+                        // opaque base and the text (negative z within the cell's
+                        // own stacking context), keeping the striping theme-safe.
+                        idx === 0 &&
+                          'sticky left-0 z-10 bg-card shadow-[1px_0_0_var(--border)] before:pointer-events-none before:absolute before:inset-0 before:-z-10',
                         idx === 0 &&
                           (selected.has(row.leadId)
-                            ? 'bg-primary/5'
-                            : rowIdx % 2 === 0
-                              ? 'bg-card'
-                              : 'bg-muted/20'),
+                            ? 'before:bg-primary/5'
+                            : rowIdx % 2 === 1 && 'before:bg-muted/20'),
                       )}
                     >
                       {idx === 0 && manage ? (
