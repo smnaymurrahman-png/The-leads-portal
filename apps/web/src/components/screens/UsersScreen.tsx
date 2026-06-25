@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Mail, Users } from 'lucide-react';
+import { KeyRound, Mail, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -71,6 +71,7 @@ export function UsersScreen({ role }: { role: string }) {
   // Selection + mutation state — kept inline so the screen is self-contained.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<UserRow | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<UserRow | null>(null);
   const [deletingOne, setDeletingOne] = useState<UserRow | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState<'delete' | 'activate' | 'deactivate' | null>(
     null,
@@ -135,6 +136,15 @@ export function UsersScreen({ role }: { role: string }) {
     );
     await reload();
     toast.success(`${editing.full_name} updated`);
+  }
+
+  async function onResetPasswordSubmit(form: HTMLFormElement): Promise<void> {
+    if (!resettingPassword) return;
+    const fd = new FormData(form);
+    const newPassword = String(fd.get('newPassword') ?? '').trim();
+    if (newPassword.length < 8) throw new Error('Password must be at least 8 characters');
+    await apiSend('POST', `users/${resettingPassword.id}/reset-password`, { newPassword });
+    toast.success(`Password reset for ${resettingPassword.full_name}`);
   }
 
   async function setStatus(ids: string[], status: AccountStatus, verb: string): Promise<void> {
@@ -310,6 +320,7 @@ export function UsersScreen({ role }: { role: string }) {
                       <RowActions
                         status={u.status}
                         onEdit={() => setEditing(u)}
+                        onResetPassword={role === 'SUPER_ADMIN' ? () => setResettingPassword(u) : undefined}
                         onActivate={() => void setStatus([u.id], 'ACTIVE', 'activated')}
                         onDeactivate={() => void setStatus([u.id], 'SUSPENDED', 'deactivated')}
                         onDelete={() => setDeletingOne(u)}
@@ -357,6 +368,19 @@ export function UsersScreen({ role }: { role: string }) {
           </div>
         </EditDialog>
       )}
+
+      <EditDialog
+        open={resettingPassword !== null}
+        onOpenChange={(o) => !o && setResettingPassword(null)}
+        title={`Reset password — ${resettingPassword?.full_name ?? ''}`}
+        description="Set a new password for this user. They can change it again from their profile."
+        submitLabel="Reset password"
+        onSubmit={onResetPasswordSubmit}
+      >
+        <Field label="New password" hint="min 8 chars">
+          <Input name="newPassword" type="password" minLength={8} required />
+        </Field>
+      </EditDialog>
 
       <ConfirmDialog
         open={deletingOne !== null}

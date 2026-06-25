@@ -68,6 +68,14 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: dto, omit: HIDE_HASH });
   }
 
+  async resetPassword(id: string, newPassword: string) {
+    await this.get(id);
+    await this.prisma.user.update({
+      where: { id },
+      data: { password_hash: await hash(newPassword, 10) },
+    });
+  }
+
   async remove(actor: AuthPrincipal, id: string) {
     if (actor.id === id) {
       throw new ForbiddenException("You can't delete your own account.");

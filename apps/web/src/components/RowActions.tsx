@@ -1,6 +1,6 @@
 'use client';
 
-import { Edit3, MoreHorizontal, PauseCircle, PlayCircle, Trash2 } from 'lucide-react';
+import { Edit3, KeyRound, MoreHorizontal, PauseCircle, PlayCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ export function RowActions({
   status,
   onActivate,
   onDeactivate,
+  onResetPassword,
   disabled,
 }: {
   onEdit: () => void;
@@ -29,6 +30,7 @@ export function RowActions({
   status?: 'ACTIVE' | 'PENDING' | 'SUSPENDED' | 'INACTIVE' | null;
   onActivate?: () => void;
   onDeactivate?: () => void;
+  onResetPassword?: () => void;
   disabled?: boolean;
 }) {
   const showActivate = onActivate && status && status !== 'ACTIVE';
@@ -54,6 +56,12 @@ export function RowActions({
           <Edit3 className="size-3.5" />
           Edit
         </DropdownMenuItem>
+        {onResetPassword && (
+          <DropdownMenuItem onClick={onResetPassword}>
+            <KeyRound className="size-3.5" />
+            Reset password
+          </DropdownMenuItem>
+        )}
         {showActivate && (
           <DropdownMenuItem onClick={onActivate}>
             <PlayCircle className="size-3.5" />
