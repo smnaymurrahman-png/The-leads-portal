@@ -6,6 +6,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Leads Portal',
   description: 'Multi-vertical lead-generation management and live distribution platform',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

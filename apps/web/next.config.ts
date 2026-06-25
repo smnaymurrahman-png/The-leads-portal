@@ -13,6 +13,16 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@leads-portal/shared'],
   outputFileTracingRoot: workspaceRoot,
   turbopack: { root: workspaceRoot },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.leads-portal.net' }],
+        destination: 'https://leads-portal.net/:path*',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

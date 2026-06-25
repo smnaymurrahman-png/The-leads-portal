@@ -177,9 +177,9 @@ export function SidebarShell({
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-5 lg:px-6 lg:py-6">
+        <div className="flex-1 overflow-y-auto px-4 py-5 lg:px-6 lg:py-6">
           <div className="mx-auto w-full max-w-screen-2xl">{children}</div>
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
     </NotificationsProvider>

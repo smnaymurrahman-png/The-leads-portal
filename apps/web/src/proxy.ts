@@ -36,7 +36,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   const home = ROLE_HOME[claims.role];
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/') {
     return NextResponse.redirect(new URL(home, request.url));
   }
 
@@ -48,5 +48,5 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ['/login', '/super-admin/:path*', '/admin/:path*', '/agent/:path*', '/client/:path*'],
+  matcher: ['/', '/login', '/super-admin/:path*', '/admin/:path*', '/agent/:path*', '/client/:path*'],
 };
