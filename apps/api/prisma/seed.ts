@@ -24,8 +24,11 @@ import { seedLeadTypeColumns } from './lead-type-columns';
 
 const prisma = new PrismaClient();
 
-/** Shared development password for every seeded account. CHANGE IN PRODUCTION. */
+/** Shared development password for non-super-admin seeded accounts. */
 const DEFAULT_PASSWORD = 'Password123!';
+/** Super-admin credentials. */
+const SUPER_ADMIN_EMAIL = 'smnaymurrahman@nebs-it.com';
+const SUPER_ADMIN_PASSWORD = 'Nebsit646458@!';
 
 /** Create a campaign only if one with the same name does not already exist. */
 async function ensureCampaign(name: string, data: Omit<Prisma.CampaignUncheckedCreateInput, 'name'>) {
@@ -44,17 +47,18 @@ async function ensureLandingPage(
 
 async function main(): Promise<void> {
   const password_hash = await hash(DEFAULT_PASSWORD, 10);
+  const super_admin_hash = await hash(SUPER_ADMIN_PASSWORD, 10);
 
   // ── Internal staff ──────────────────────────────────────────────────────
   const superAdmin = await prisma.user.upsert({
-    where: { work_email: 'superadmin@leadsportal.test' },
-    update: {},
+    where: { work_email: SUPER_ADMIN_EMAIL },
+    update: { password_hash: super_admin_hash },
     create: {
       role: Role.SUPER_ADMIN,
       full_name: 'Sara Superadmin',
-      work_email: 'superadmin@leadsportal.test',
+      work_email: SUPER_ADMIN_EMAIL,
       phone: '+15550000001',
-      password_hash,
+      password_hash: super_admin_hash,
       designation: 'Founder',
       employee_id: 'EMP-0001',
     },
@@ -199,13 +203,14 @@ async function main(): Promise<void> {
 
   /* eslint-disable no-console */
   console.log('✔ Seed complete');
-  console.log(`  staff:    ${superAdmin.work_email}, ${admin.work_email}, ${agent.work_email}`);
+  console.log(`  super admin: ${superAdmin.work_email} / ${SUPER_ADMIN_PASSWORD}`);
+  console.log(`  staff:    ${admin.work_email}, ${agent.work_email} / ${DEFAULT_PASSWORD}`);
   console.log(`  clients:  ${client1.email}, ${client2.email}`);
   console.log('  campaigns + landing pages + lead_prices setting created');
   console.log('  suppression list: suppressed@example.com, +14155550000');
   console.log('  solar landing page id: 00000000-0000-4000-8000-000000000001');
   console.log('  solar intake secret:   solar_dev_intake_secret_change_me');
-  console.log(`  password for every seeded account: ${DEFAULT_PASSWORD}`);
+  console.log(`  password for admin/agent/clients: ${DEFAULT_PASSWORD}`);
   /* eslint-enable no-console */
 }
 
