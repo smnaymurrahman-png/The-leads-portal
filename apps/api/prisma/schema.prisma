@@ -102,6 +102,13 @@ enum FollowupStatus {
   DEAD
 }
 
+enum SampleRequestStatus {
+  PENDING    // submitted by client, waiting for agent to review
+  FORWARDED  // agent forwarded to admin
+  ASSIGNED   // admin assigned sample leads to client or agent
+  REJECTED
+}
+
 enum AssignmentType {
   AUTO
   MANUAL
@@ -186,6 +193,10 @@ model User {
   commissions           Commission[]
   audit_logs            AuditLog[]
 
+  sample_requests_as_agent    SampleRequest[] @relation("SampleRequestAgent")
+  sample_requests_as_reviewer SampleRequest[] @relation("SampleRequestReviewer")
+  sample_deliveries_assigned  SampleDelivery[] @relation("SampleDeliveryAssigner")
+
   @@map("users")
 }
 
@@ -210,6 +221,9 @@ model Client {
   replacements Replacement[]
   transactions Transaction[]
   invoices     Invoice[]
+
+  sample_requests   SampleRequest[]
+  sample_deliveries SampleDelivery[]
 
   @@index([agent_id])
   @@map("clients")
@@ -284,6 +298,7 @@ model Lead {
   consent_at      DateTime?     @db.Timestamptz(6)
   lead_state      LeadState     @default(NEW)
   reject_reason   RejectReason?
+  in_sample_pool  Boolean       @default(false)
   captured_at     DateTime      @default(now()) @db.Timestamptz(6)
   created_at      DateTime      @default(now()) @db.Timestamptz(6)
   updated_at      DateTime      @updatedAt @db.Timestamptz(6)
@@ -294,12 +309,64 @@ model Lead {
 
   replacements_as_original    Replacement[] @relation("OriginalLead")
   replacements_as_replacement Replacement[] @relation("ReplacementLead")
+  sample_deliveries           SampleDelivery[]
 
   @@index([lead_type, country, state])
   @@index([phone])
   @@index([email])
   @@index([lead_state])
   @@map("leads")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sample leads
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SampleRequest {
+  id            String              @id @default(uuid()) @db.Uuid
+  public_id     String              @unique
+  client_id     String              @db.Uuid
+  agent_id      String              @db.Uuid
+  lead_type     LeadType
+  quantity      Int
+  delivery_mode DeliveryMode
+  state_filter  String?
+  zip_filter    String?
+  notes         String?
+  status        SampleRequestStatus @default(PENDING)
+  reject_reason String?
+  reviewed_by   String?             @db.Uuid
+  created_at    DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime            @updatedAt @db.Timestamptz(6)
+
+  client     Client          @relation(fields: [client_id], references: [id])
+  agent      User            @relation("SampleRequestAgent", fields: [agent_id], references: [id])
+  reviewer   User?           @relation("SampleRequestReviewer", fields: [reviewed_by], references: [id])
+  deliveries SampleDelivery[]
+
+  @@index([client_id])
+  @@index([agent_id])
+  @@index([status, lead_type])
+  @@map("sample_requests")
+}
+
+model SampleDelivery {
+  id                String   @id @default(uuid()) @db.Uuid
+  sample_request_id String   @db.Uuid
+  lead_id           String   @db.Uuid
+  client_id         String   @db.Uuid
+  assigned_by       String   @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  sample_request SampleRequest @relation(fields: [sample_request_id], references: [id])
+  lead           Lead          @relation(fields: [lead_id], references: [id])
+  client         Client        @relation(fields: [client_id], references: [id])
+  assigner       User          @relation("SampleDeliveryAssigner", fields: [assigned_by], references: [id])
+
+  @@unique([sample_request_id, lead_id])
+  @@index([sample_request_id])
+  @@index([client_id])
+  @@map("sample_deliveries")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

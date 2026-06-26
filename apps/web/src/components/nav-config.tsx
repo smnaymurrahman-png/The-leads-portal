@@ -4,6 +4,7 @@ import {
   Building2,
   Database,
   DollarSign,
+  FlaskConical,
   Globe,
   Home,
   KeyRound,
@@ -52,6 +53,7 @@ export const SUPER_ADMIN_NAV: NavSection[] = [
       { href: '/super-admin/leads/homeowner', label: 'Homeowner', icon: Home, nested: true },
       { href: '/super-admin/orders', label: 'Orders', icon: ShoppingCart },
       { href: '/super-admin/replacements', label: 'Replacements', icon: RefreshCw },
+      { href: '/super-admin/samples', label: 'Samples', icon: FlaskConical },
     ],
   },
   {
@@ -94,6 +96,7 @@ export const ADMIN_NAV: NavSection[] = [
       { href: '/admin/leads/homeowner', label: 'Homeowner', icon: Home, nested: true },
       { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
       { href: '/admin/replacements', label: 'Replacements', icon: RefreshCw },
+      { href: '/admin/samples', label: 'Samples', icon: FlaskConical },
     ],
   },
   {
@@ -125,6 +128,7 @@ export const AGENT_NAV: NavSection[] = [
       { href: '/agent/leads/payday', label: 'Payday', icon: Banknote, nested: true },
       { href: '/agent/leads/homeowner', label: 'Homeowner', icon: Home, nested: true },
       { href: '/agent/replacements', label: 'Replacements', icon: RefreshCw },
+      { href: '/agent/samples', label: 'Samples', icon: FlaskConical },
     ],
   },
 ];
@@ -144,6 +148,7 @@ export const CLIENT_NAV: NavSection[] = [
       { href: '/client/leads/payday', label: 'Payday', icon: Banknote, nested: true },
       { href: '/client/leads/homeowner', label: 'Homeowner', icon: Home, nested: true },
       { href: '/client/replacements', label: 'Replacements', icon: RefreshCw },
+      { href: '/client/samples', label: 'Samples', icon: FlaskConical },
     ],
   },
   {

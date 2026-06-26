@@ -22,6 +22,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { ReplacementsModule } from './replacements/replacements.module';
 import { RevenueModule } from './revenue/revenue.module';
 import { StorageModule } from './storage/storage.module';
+import { SamplesModule } from './samples/samples.module';
 import { SuppressionModule } from './suppression/suppression.module';
 import { UsersModule } from './users/users.module';
 
@@ -75,6 +76,7 @@ import { UsersModule } from './users/users.module';
     RevenueModule,
     ApiKeysModule,
     SuppressionModule,
+    SamplesModule,
   ],
 })
 export class AppModule {}
