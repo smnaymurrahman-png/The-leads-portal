@@ -14,6 +14,8 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { SignupAgentDto } from './dto/signup-agent.dto';
+import { SignupClientDto } from './dto/signup-client.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import type { AuthPrincipal } from './types';
 
@@ -32,6 +34,24 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto): Promise<LoginResult> {
     return this.auth.login(dto.email, dto.password);
+  }
+
+  /** Public self-registration for business (agent) accounts — requires admin approval. */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('signup/agent')
+  @HttpCode(HttpStatus.OK)
+  signupAgent(@Body() dto: SignupAgentDto) {
+    return this.auth.signupAgent(dto);
+  }
+
+  /** Public self-registration for client accounts — requires agent approval. */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('signup/client')
+  @HttpCode(HttpStatus.OK)
+  signupClient(@Body() dto: SignupClientDto) {
+    return this.auth.signupClient(dto);
   }
 
   /** Identity of the current principal. Any authenticated role. */

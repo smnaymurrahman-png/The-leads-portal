@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -52,5 +54,23 @@ export class ClientsController {
   @Delete(':id')
   remove(@CurrentUser() actor: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.clients.remove(actor, id);
+  }
+
+  /** Pending approval requests — AGENT sees only their own. */
+  @Get('pending')
+  listPending(@CurrentUser() actor: AuthPrincipal) {
+    return this.clients.listPending(actor);
+  }
+
+  @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  approve(@CurrentUser() actor: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.clients.approve(actor, id);
+  }
+
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  reject(@CurrentUser() actor: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
+    return this.clients.reject(actor, id);
   }
 }

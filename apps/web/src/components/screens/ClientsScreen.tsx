@@ -1,6 +1,7 @@
 'use client';
 
-import { Building2 } from 'lucide-react';
+import { useState } from 'react';
+import { Building2, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,6 +53,18 @@ interface AgentOption {
   full_name: string;
 }
 
+interface PendingClientRow {
+  id: string;
+  full_name: string;
+  email: string;
+  business_name: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  targeted_lead_type: string | null;
+  agent_id: string | null;
+  created_at: string;
+}
+
 const STATUS_VARIANT: Record<AccountStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   ACTIVE: 'default',
   PENDING: 'outline',
@@ -65,9 +78,33 @@ export function ClientsScreen({ role }: { role: string }) {
   const { data: clients, loading, error, reload } = useResource<ClientRow>('clients');
   const agents = useResource<AgentOption>(isStaff ? 'users?role=AGENT' : null);
   const a = useEntityActions<ClientRow>('clients', reload);
+  const {
+    data: pendingClients,
+    loading: pendingLoading,
+    reload: reloadPending,
+  } = useResource<PendingClientRow>(role === 'AGENT' ? 'clients/pending' : null);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   const allChecked = clients.length > 0 && a.selected.size === clients.length;
   const someChecked = a.selected.size > 0 && !allChecked;
+
+  async function handlePendingAction(id: string, action: 'approve' | 'reject'): Promise<void> {
+    setProcessingIds((prev) => new Set(prev).add(id));
+    try {
+      await apiSend('POST', `clients/${id}/${action}`, {});
+      toast.success(action === 'approve' ? 'Client approved' : 'Client rejected');
+      await reloadPending();
+      await reload();
+    } catch {
+      toast.error(`Failed to ${action} client`);
+    } finally {
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
 
   async function onCreate(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
@@ -169,6 +206,88 @@ export function ClientsScreen({ role }: { role: string }) {
           </FormDialog>
         }
       />
+
+      {role === 'AGENT' && (pendingLoading || pendingClients.length > 0) && (
+        <Card className="mb-6">
+          <CardContent className="p-0">
+            <div className="flex items-center gap-2 px-6 py-4 border-b">
+              <Clock className="size-4 text-amber-500" />
+              <h3 className="text-sm font-semibold">
+                Client Approval Requests
+                {pendingClients.length > 0 && (
+                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-xs font-medium text-amber-700">
+                    {pendingClients.length}
+                  </span>
+                )}
+              </h3>
+            </div>
+            {pendingLoading ? (
+              <TableSkeleton columns={5} rows={2} />
+            ) : pendingClients.length === 0 ? (
+              <p className="px-6 py-4 text-sm text-muted-foreground">No pending requests.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Business</TableHead>
+                    <TableHead>Lead Type</TableHead>
+                    <TableHead>WhatsApp</TableHead>
+                    <TableHead className="w-36" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingClients.map((pc) => {
+                    const busy = processingIds.has(pc.id);
+                    return (
+                      <TableRow key={pc.id}>
+                        <TableCell className="font-medium">{pc.full_name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{pc.email}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {pc.business_name ?? '—'}
+                        </TableCell>
+                        <TableCell>
+                          {pc.targeted_lead_type ? (
+                            <Badge variant="outline" className="text-xs">
+                              {pc.targeted_lead_type.charAt(0) + pc.targeted_lead_type.slice(1).toLowerCase()}
+                            </Badge>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {pc.whatsapp ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              disabled={busy}
+                              onClick={() => void handlePendingAction(pc.id, 'approve')}
+                              className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                            >
+                              <CheckCircle2 className="size-3.5" />
+                              Approve
+                            </button>
+                            <button
+                              disabled={busy}
+                              onClick={() => void handlePendingAction(pc.id, 'reject')}
+                              className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                            >
+                              <XCircle className="size-3.5" />
+                              Reject
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <BulkActionsBar
         count={a.selected.size}

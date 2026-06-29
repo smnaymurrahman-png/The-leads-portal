@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { AccountStatus, Role } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { OwnershipService } from '../auth/ownership.service';
 import type { AuthPrincipal } from '../auth/types';
@@ -55,6 +55,47 @@ export class ClientsService {
       where: this.ownership.clientScope(actor),
       omit: HIDE_HASH,
       orderBy: { created_at: 'desc' },
+    });
+  }
+
+  /** Pending approval requests — AGENT sees only their own. */
+  listPending(actor: AuthPrincipal) {
+    const where =
+      actor.role === Role.AGENT
+        ? { agent_id: actor.id, status: AccountStatus.PENDING }
+        : { status: AccountStatus.PENDING };
+    return this.prisma.client.findMany({
+      where,
+      omit: HIDE_HASH,
+      orderBy: { created_at: 'asc' },
+    });
+  }
+
+  async approve(actor: AuthPrincipal, id: string) {
+    await this.ownership.assertCanAccessClient(actor, id);
+    const client = await this.prisma.client.findUnique({ where: { id } });
+    if (!client) throw new NotFoundException('Client not found');
+    if (client.status !== AccountStatus.PENDING) {
+      throw new BadRequestException('Client is not in pending state');
+    }
+    return this.prisma.client.update({
+      where: { id },
+      data: { status: AccountStatus.ACTIVE },
+      omit: HIDE_HASH,
+    });
+  }
+
+  async reject(actor: AuthPrincipal, id: string) {
+    await this.ownership.assertCanAccessClient(actor, id);
+    const client = await this.prisma.client.findUnique({ where: { id } });
+    if (!client) throw new NotFoundException('Client not found');
+    if (client.status !== AccountStatus.PENDING) {
+      throw new BadRequestException('Client is not in pending state');
+    }
+    return this.prisma.client.update({
+      where: { id },
+      data: { status: AccountStatus.INACTIVE },
+      omit: HIDE_HASH,
     });
   }
 

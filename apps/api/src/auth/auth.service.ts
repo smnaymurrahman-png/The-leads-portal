@@ -1,8 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Role } from '@prisma/client';
+import { AccountStatus, Role } from '@prisma/client';
 import { compare, hash as bcryptHash } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import type { SignupAgentDto } from './dto/signup-agent.dto';
+import type { SignupClientDto } from './dto/signup-client.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 import type { AuthPrincipal, JwtPayload } from './types';
 
@@ -28,17 +30,76 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { work_email: normalized } });
     if (user) {
       await this.verifyPassword(password, user.password_hash);
+      if (user.status === AccountStatus.PENDING) {
+        throw new UnauthorizedException('Your account is pending approval. You will be notified once approved.');
+      }
+      if (user.status !== AccountStatus.ACTIVE) {
+        throw new UnauthorizedException('Your account is not active. Contact your administrator.');
+      }
       return this.issue(user.id, user.role, user.full_name, user.work_email);
     }
 
     const client = await this.prisma.client.findUnique({ where: { email: normalized } });
     if (client) {
       await this.verifyPassword(password, client.password_hash);
+      if (client.status === AccountStatus.PENDING) {
+        throw new UnauthorizedException('Your account is pending approval from your agent.');
+      }
+      if (client.status !== AccountStatus.ACTIVE) {
+        throw new UnauthorizedException('Your account is not active. Contact your agent.');
+      }
       return this.issue(client.id, Role.CLIENT, client.full_name, client.email);
     }
 
     // Same error whether the email is unknown or the password is wrong.
     throw new UnauthorizedException('Invalid email or password');
+  }
+
+  async signupAgent(dto: SignupAgentDto): Promise<{ message: string }> {
+    const email = dto.work_email.trim().toLowerCase();
+    const clash = await this.prisma.user.findUnique({ where: { work_email: email } });
+    if (clash) {
+      throw new ConflictException('An account with this email already exists');
+    }
+    await this.prisma.user.create({
+      data: {
+        role: Role.AGENT,
+        full_name: dto.full_name,
+        work_email: email,
+        phone: dto.phone,
+        whatsapp: dto.whatsapp ?? null,
+        business_name: dto.business_name ?? null,
+        password_hash: await bcryptHash(dto.password, 10),
+        status: AccountStatus.PENDING,
+      },
+    });
+    return { message: 'Application submitted. An admin will review and approve your account.' };
+  }
+
+  async signupClient(dto: SignupClientDto): Promise<{ message: string }> {
+    const agent = await this.prisma.user.findUnique({ where: { id: dto.agent_id } });
+    if (!agent || agent.role !== Role.AGENT || agent.status !== AccountStatus.ACTIVE) {
+      throw new BadRequestException('Invalid agent ID. Please check with your agent.');
+    }
+    const email = dto.email.trim().toLowerCase();
+    const clash = await this.prisma.client.findUnique({ where: { email } });
+    if (clash) {
+      throw new ConflictException('An account with this email already exists');
+    }
+    await this.prisma.client.create({
+      data: {
+        agent_id: dto.agent_id,
+        full_name: dto.full_name,
+        email,
+        password_hash: await bcryptHash(dto.password, 10),
+        whatsapp: dto.whatsapp ?? null,
+        business_name: dto.business_name ?? null,
+        address: dto.address ?? null,
+        targeted_lead_type: dto.targeted_lead_type,
+        status: AccountStatus.PENDING,
+      },
+    });
+    return { message: 'Account created. Your agent will review and approve your request.' };
   }
 
   private async verifyPassword(password: string, hash: string): Promise<void> {

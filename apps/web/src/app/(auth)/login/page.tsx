@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { LoginForm } from '@/components/LoginForm';
 import {
   Card,
@@ -31,7 +32,13 @@ export default function LoginPage() {
         </CardContent>
       </Card>
 
-      <p className="mt-6 text-center text-xs text-muted-foreground">
+      <p className="mt-4 text-center text-sm text-muted-foreground">
+        Don&apos;t have an account?{' '}
+        <Link href="/signup" className="text-primary underline-offset-4 hover:underline">
+          Sign up
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-xs text-muted-foreground">
         Trouble signing in? Ask your administrator to reset your password.
       </p>
     </div>

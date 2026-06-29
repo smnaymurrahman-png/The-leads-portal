@@ -159,6 +159,8 @@ enum AccountStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
+  /// Self-sign-up awaiting admin/agent approval.
+  PENDING
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,6 +179,7 @@ model User {
   designation   String?
   employee_id   String?
   linkedin_url  String?
+  business_name String?
   status        AccountStatus @default(ACTIVE)
   created_at    DateTime      @default(now()) @db.Timestamptz(6)
   updated_at    DateTime      @updatedAt @db.Timestamptz(6)
@@ -207,13 +210,14 @@ model Client {
   full_name     String
   business_name String?
   email         String        @unique
-  phone         String?
-  whatsapp      String?
-  address       String?
-  password_hash String
-  status        AccountStatus @default(ACTIVE)
-  created_at    DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime      @updatedAt @db.Timestamptz(6)
+  phone               String?
+  whatsapp            String?
+  address             String?
+  password_hash       String
+  targeted_lead_type  LeadType?
+  status              AccountStatus @default(ACTIVE)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @updatedAt @db.Timestamptz(6)
 
   agent        User             @relation(fields: [agent_id], references: [id])
   orders       Order[]

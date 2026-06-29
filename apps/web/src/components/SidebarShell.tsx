@@ -66,6 +66,7 @@ const NAV_BY_AREA: Record<AreaKey, NavSection[]> = {
 export function SidebarShell({
   area,
   areaKey,
+  navSections: navSectionsOverride,
   profileHref,
   session,
   children,
@@ -75,12 +76,14 @@ export function SidebarShell({
   /** Which nav blueprint to render — selected on the client to keep
    *  React-component icon refs out of the server→client prop payload. */
   areaKey: AreaKey;
+  /** Override the nav entirely — used by the client portal for dynamic lead-type nav. */
+  navSections?: NavSection[];
   /** Path to this role's profile page — wraps the identity row in a link. */
   profileHref: string;
   session: SessionLike;
   children: ReactNode;
 }) {
-  const navSections = NAV_BY_AREA[areaKey];
+  const navSections = navSectionsOverride ?? NAV_BY_AREA[areaKey];
   const initials = session.name
     .split(/\s+/)
     .map((part) => part[0])
