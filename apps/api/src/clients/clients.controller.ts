@@ -37,6 +37,12 @@ export class ClientsController {
     return this.clients.list(actor);
   }
 
+  /** Pending approval requests — AGENT sees only their own. Must be before :id */
+  @Get('pending')
+  listPending(@CurrentUser() actor: AuthPrincipal) {
+    return this.clients.listPending(actor);
+  }
+
   @Get(':id')
   get(@CurrentUser() actor: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.clients.get(actor, id);
@@ -54,12 +60,6 @@ export class ClientsController {
   @Delete(':id')
   remove(@CurrentUser() actor: AuthPrincipal, @Param('id', ParseUUIDPipe) id: string) {
     return this.clients.remove(actor, id);
-  }
-
-  /** Pending approval requests — AGENT sees only their own. */
-  @Get('pending')
-  listPending(@CurrentUser() actor: AuthPrincipal) {
-    return this.clients.listPending(actor);
   }
 
   @Post(':id/approve')
