@@ -140,7 +140,6 @@ export function BulkImportDialog({ landingPage }: { landingPage: LandingPage }) 
       const payload = {
         rows: rows.map((data, idx) => ({
           submission_id: `${submissionPrefix}-${String(idx).padStart(5, '0')}`,
-          source_url: `csv://${file.name}`,
           data,
         })),
       };
