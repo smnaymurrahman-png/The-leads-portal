@@ -17,7 +17,8 @@
     "prisma:seed": "prisma db seed",
     "db:check": "node --env-file-if-exists=.env -r ts-node/register scripts/db-check.ts",
     "test:concurrency": "node --env-file-if-exists=.env -r ts-node/register/transpile-only scripts/distribution-concurrency-test.ts",
-    "rbac:audit": "node --env-file-if-exists=.env -r ts-node/register/transpile-only scripts/rbac-audit.ts"
+    "rbac:audit": "node --env-file-if-exists=.env -r ts-node/register/transpile-only scripts/rbac-audit.ts",
+    "seed:solar": "node --env-file-if-exists=.env -r ts-node/register/transpile-only scripts/seed-solar-leads.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

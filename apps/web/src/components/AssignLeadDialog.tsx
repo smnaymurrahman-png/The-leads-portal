@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -62,6 +62,9 @@ export function AssignLeadDialog({
   const [clientId, setClientId] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [delaySeconds, setDelaySeconds] = useState<number>(0);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const abortRef = useRef(false);
 
   // Leads must all share the same lead type for a single dialog session.
   const leadType = leads[0]?.leadType;
@@ -73,6 +76,8 @@ export function AssignLeadDialog({
     setError(null);
     setClientId(null);
     setOrderId(null);
+    setProgress(null);
+    abortRef.current = false;
     void (async () => {
       try {
         const all = await apiGet<OrderRow[]>('orders');
@@ -114,24 +119,47 @@ export function AssignLeadDialog({
 
   async function assign(): Promise<void> {
     if (!orderId || leads.length === 0) return;
+    abortRef.current = false;
     setBusy(true);
-    const results = await Promise.allSettled(
-      leads.map((l) =>
-        apiSend('POST', `distribution/leads/${l.id}/assign`, { orderId }),
-      ),
-    );
+    setProgress({ current: 0, total: leads.length });
+
+    let ok = 0;
+    let fail = 0;
+    const delayMs = Math.max(0, delaySeconds) * 1000;
+
+    for (let i = 0; i < leads.length; i++) {
+      if (abortRef.current) break;
+      setProgress({ current: i + 1, total: leads.length });
+      try {
+        await apiSend('POST', `distribution/leads/${leads[i].id}/assign`, { orderId });
+        ok++;
+      } catch {
+        fail++;
+      }
+      // sleep between leads — skip after the last one
+      if (delayMs > 0 && i < leads.length - 1 && !abortRef.current) {
+        await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
     setBusy(false);
-    const ok = results.filter((r) => r.status === 'fulfilled').length;
-    const fail = results.length - ok;
-    if (fail === 0) toast.success(`${ok} lead${ok === 1 ? '' : 's'} assigned`);
-    else if (ok === 0) {
-      const first = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
-      toast.error(first.reason instanceof Error ? first.reason.message : 'Assign failed');
+    setProgress(null);
+
+    if (abortRef.current) {
+      toast.warning(`Stopped after ${ok} assigned, ${fail} failed`);
+    } else if (fail === 0) {
+      toast.success(`${ok} lead${ok === 1 ? '' : 's'} assigned`);
+    } else if (ok === 0) {
+      toast.error('All assignments failed (order may be full or already assigned)');
     } else {
       toast.warning(`${ok} assigned, ${fail} failed (order may be full or already assigned)`);
     }
     onDone?.();
     onOpenChange(false);
+  }
+
+  function abort(): void {
+    abortRef.current = true;
   }
 
   return (
@@ -228,14 +256,61 @@ export function AssignLeadDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {leads.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium">
+                  Delay between leads
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={delaySeconds}
+                    onChange={(e) => setDelaySeconds(Math.max(0, Number(e.target.value)))}
+                    className="h-9 w-28"
+                    disabled={busy}
+                  />
+                  <span className="text-sm text-muted-foreground">seconds</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {delaySeconds > 0
+                    ? `Each lead sent ${delaySeconds}s apart — total ≈ ${Math.round((leads.length - 1) * delaySeconds)}s`
+                    : 'Set a delay to stagger delivery (0 = send all immediately)'}
+                </p>
+              </div>
+            )}
+
+            {progress && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Assigning {progress.current} of {progress.total}…</span>
+                  {delaySeconds > 0 && (
+                    <span>~{Math.round((progress.total - progress.current) * delaySeconds)}s remaining</span>
+                  )}
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        <DialogFooter showCloseButton>
-          <Button onClick={assign} disabled={!orderId || busy || mixedTypes}>
-            {busy && <Loader2 className="size-4 animate-spin" />}
-            Assign
-          </Button>
+        <DialogFooter showCloseButton={!busy}>
+          {busy ? (
+            <Button variant="destructive" onClick={abort}>
+              Stop
+            </Button>
+          ) : (
+            <Button onClick={assign} disabled={!orderId || mixedTypes}>
+              Assign
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
