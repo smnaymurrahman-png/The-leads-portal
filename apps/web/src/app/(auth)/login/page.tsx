@@ -13,11 +13,9 @@ export const dynamic = 'force-dynamic';
 export default function LoginPage() {
   return (
     <div className="w-full max-w-md">
-      <div className="mb-6 flex items-center justify-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-sm">
-          LP
-        </span>
-        <span className="text-base font-semibold tracking-tight">Leads Portal</span>
+      <div className="mb-6 flex items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="Leads Portal" className="h-8 w-auto object-contain" style={{ maxWidth: 200 }} />
       </div>
 
       <Card className="shadow-xl">

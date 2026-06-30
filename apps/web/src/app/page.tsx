@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -7,8 +6,10 @@ export default function HomePage() {
       {/* Nav */}
       <header className="border-b border-border px-6 py-4 flex items-center justify-between max-w-6xl mx-auto w-full">
         <div className="flex items-center gap-3">
-          <Image src="/icon.svg" alt="Leads Portal icon" width={36} height={36} />
-          <Image src="/logo.png" alt="Leads Portal" height={32} width={160} className="object-contain" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="Leads Portal icon" className="h-9 w-9 rounded-xl object-cover" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="Leads Portal" className="h-7 w-auto object-contain" style={{ maxWidth: 180 }} />
         </div>
         <Link
           href="/login"

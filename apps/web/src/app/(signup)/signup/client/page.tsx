@@ -5,11 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 export default function SignupClientPage() {
   return (
     <div className="w-full max-w-lg">
-      <div className="mb-6 flex items-center justify-center gap-2.5">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-md">
-          LP
-        </span>
-        <span className="text-lg font-semibold tracking-tight">Leads Portal</span>
+      <div className="mb-6 flex items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="Leads Portal" className="h-8 w-auto object-contain" style={{ maxWidth: 200 }} />
       </div>
 
       <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-sm">

@@ -111,12 +111,12 @@ export function SidebarShell({
       <Sidebar collapsible="icon" className="border-r">
         <SidebarHeader className="border-b">
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
-              LP
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.svg" alt="Leads Portal" className="h-8 w-8 rounded-lg shrink-0 object-cover" />
             <div className="flex flex-col leading-none group-data-[collapsible=icon]:hidden">
-              <span className="text-sm font-semibold">Leads Portal</span>
-              <span className="text-xs text-muted-foreground">{area}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.svg" alt="Leads Portal" className="h-4 w-auto object-contain" style={{ maxWidth: 110 }} />
+              <span className="text-xs text-muted-foreground mt-0.5">{area}</span>
             </div>
           </div>
         </SidebarHeader>

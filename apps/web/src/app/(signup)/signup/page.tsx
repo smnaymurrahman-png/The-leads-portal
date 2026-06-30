@@ -5,11 +5,9 @@ export default function SignupPage() {
   return (
     <div className="w-full max-w-xl">
       {/* Brand */}
-      <div className="mb-8 flex items-center justify-center gap-2.5">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-md">
-          LP
-        </span>
-        <span className="text-lg font-semibold tracking-tight">Leads Portal</span>
+      <div className="mb-8 flex items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="Leads Portal" className="h-9 w-auto object-contain" style={{ maxWidth: 220 }} />
       </div>
 
       {/* Heading */}
