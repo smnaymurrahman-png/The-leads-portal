@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
+import { Banknote, Home, Sun, Ticket, Zap } from 'lucide-react';
 import {
   ADMIN_NAV,
   AGENT_NAV,
@@ -63,27 +64,52 @@ const NAV_BY_AREA: Record<AreaKey, NavSection[]> = {
   client: CLIENT_NAV,
 };
 
+const LEAD_TYPE_NAV: Record<string, { label: string; href: string; icon: ComponentType<SVGProps<SVGSVGElement>> }> = {
+  SOLAR:       { label: 'Solar Leads',       href: '/client/leads/solar',       icon: Sun },
+  SWEEPSTAKES: { label: 'Sweepstakes Leads', href: '/client/leads/sweepstakes', icon: Ticket },
+  PAYDAY:      { label: 'Payday Leads',      href: '/client/leads/payday',      icon: Banknote },
+  HOMEOWNER:   { label: 'Homeowner Leads',   href: '/client/leads/homeowner',   icon: Home },
+};
+
+function buildClientLeadNav(leadType?: string | null): NavSection[] {
+  const item = leadType ? LEAD_TYPE_NAV[leadType] : null;
+  return CLIENT_NAV.map((section) => {
+    if (section.label !== 'Buying') return section;
+    return {
+      ...section,
+      items: section.items
+        .filter((i) => !i.nested)
+        .map((i) =>
+          i.href === '/client/leads'
+            ? item
+              ? { href: item.href, label: item.label, icon: item.icon }
+              : { ...i, icon: Zap }
+            : i,
+        ),
+    };
+  });
+}
+
 export function SidebarShell({
   area,
   areaKey,
-  navSections: navSectionsOverride,
+  clientLeadType,
   profileHref,
   session,
   children,
 }: {
-  /** Display label shown in the header + top bar. */
   area: string;
-  /** Which nav blueprint to render — selected on the client to keep
-   *  React-component icon refs out of the server→client prop payload. */
   areaKey: AreaKey;
-  /** Override the nav entirely — used by the client portal for dynamic lead-type nav. */
-  navSections?: NavSection[];
-  /** Path to this role's profile page — wraps the identity row in a link. */
+  /** Serializable lead-type string for the client portal dynamic nav.
+   *  Avoids passing icon component refs across the server→client boundary. */
+  clientLeadType?: string | null;
   profileHref: string;
   session: SessionLike;
   children: ReactNode;
 }) {
-  const navSections = navSectionsOverride ?? NAV_BY_AREA[areaKey];
+  const navSections = clientLeadType !== undefined
+    ? buildClientLeadNav(clientLeadType)
+    : NAV_BY_AREA[areaKey];
   const initials = session.name
     .split(/\s+/)
     .map((part) => part[0])
