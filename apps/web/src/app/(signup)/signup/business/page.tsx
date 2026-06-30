@@ -7,7 +7,7 @@ export default function SignupBusinessPage() {
     <div className="w-full max-w-lg">
       <div className="mb-6 flex items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="Leads Portal" className="h-8 w-auto object-contain" style={{ maxWidth: 200 }} />
+        <img src="/logo.svg" alt="Leads Portal" className="h-10 w-auto" />
       </div>
 
       <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-sm">

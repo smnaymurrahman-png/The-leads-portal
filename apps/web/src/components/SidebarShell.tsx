@@ -114,9 +114,8 @@ export function SidebarShell({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icon.svg" alt="Leads Portal" className="h-8 w-8 rounded-lg shrink-0 object-cover" />
             <div className="flex flex-col leading-none group-data-[collapsible=icon]:hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.svg" alt="Leads Portal" className="h-4 w-auto object-contain" style={{ maxWidth: 110 }} />
-              <span className="text-xs text-muted-foreground mt-0.5">{area}</span>
+              <span className="text-sm font-semibold tracking-tight">Leads Portal</span>
+              <span className="text-xs text-muted-foreground">{area}</span>
             </div>
           </div>
         </SidebarHeader>

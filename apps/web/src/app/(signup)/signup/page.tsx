@@ -7,7 +7,7 @@ export default function SignupPage() {
       {/* Brand */}
       <div className="mb-8 flex items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="Leads Portal" className="h-9 w-auto object-contain" style={{ maxWidth: 220 }} />
+        <img src="/logo.svg" alt="Leads Portal" className="h-10 w-auto" />
       </div>
 
       {/* Heading */}

@@ -5,12 +5,8 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Nav */}
       <header className="border-b border-border px-6 py-4 flex items-center justify-between max-w-6xl mx-auto w-full">
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="Leads Portal icon" className="h-9 w-9 rounded-xl object-cover" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="Leads Portal" className="h-7 w-auto object-contain" style={{ maxWidth: 180 }} />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="Leads Portal" className="h-9 w-auto object-contain" />
         <Link
           href="/login"
           className="text-sm font-medium px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
