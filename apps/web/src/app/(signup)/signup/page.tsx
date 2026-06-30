@@ -1,65 +1,87 @@
 import Link from 'next/link';
-import { Building2, UserCheck } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowRight, Building2, CheckCircle2, UserCheck } from 'lucide-react';
 
 export default function SignupPage() {
   return (
-    <div className="w-full max-w-lg">
-      <div className="mb-8 flex items-center justify-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-sm">
+    <div className="w-full max-w-xl">
+      {/* Brand */}
+      <div className="mb-8 flex items-center justify-center gap-2.5">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-md">
           LP
         </span>
-        <span className="text-base font-semibold tracking-tight">Leads Portal</span>
+        <span className="text-lg font-semibold tracking-tight">Leads Portal</span>
       </div>
 
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Choose which portal you&apos;d like to sign up for</p>
+      {/* Heading */}
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold tracking-tight">Get started</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Choose your account type to create a free account.
+        </p>
       </div>
 
+      {/* Cards */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Link href="/signup/business">
-          <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
-            <CardHeader className="pb-3">
-              <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                <Building2 className="size-5 text-primary" />
-              </div>
-              <CardTitle className="text-lg">Business Portal</CardTitle>
-              <CardDescription>
-                For agents and business owners who manage clients and campaigns.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">
-                Account requires admin approval before access is granted.
-              </p>
-            </CardContent>
-          </Card>
+        {/* Business / Agent */}
+        <Link href="/signup/business" className="group block">
+          <div className="relative h-full overflow-hidden rounded-2xl border bg-card p-6 shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+              <Building2 className="size-6" />
+            </div>
+            <h2 className="text-base font-semibold">Business Portal</h2>
+            <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+              For agents and business owners managing clients, leads, and campaigns.
+            </p>
+            <ul className="mt-4 space-y-1.5">
+              {['Manage client accounts', 'Run lead campaigns', 'Track orders & reports'].map((f) => (
+                <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="size-3.5 shrink-0 text-primary" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex items-center gap-1 text-xs font-medium text-primary">
+              Sign up as agent
+              <ArrowRight className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground/70">
+              Requires admin approval
+            </p>
+          </div>
         </Link>
 
-        <Link href="/signup/client">
-          <Card className="h-full cursor-pointer transition-all hover:border-primary/50 hover:shadow-md">
-            <CardHeader className="pb-3">
-              <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                <UserCheck className="size-5 text-primary" />
-              </div>
-              <CardTitle className="text-lg">Client Portal</CardTitle>
-              <CardDescription>
-                For buyers who want to purchase and manage leads.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">
-                You will need an Agent ID provided by your agent.
-              </p>
-            </CardContent>
-          </Card>
+        {/* Client */}
+        <Link href="/signup/client" className="group block">
+          <div className="relative h-full overflow-hidden rounded-2xl border bg-card p-6 shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+              <UserCheck className="size-6" />
+            </div>
+            <h2 className="text-base font-semibold">Client Portal</h2>
+            <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+              For buyers who want to purchase and manage leads through their agent.
+            </p>
+            <ul className="mt-4 space-y-1.5">
+              {['Browse & buy leads', 'Place and track orders', 'Access your reports'].map((f) => (
+                <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="size-3.5 shrink-0 text-primary" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex items-center gap-1 text-xs font-medium text-primary">
+              Sign up as client
+              <ArrowRight className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground/70">
+              Requires an Agent ID
+            </p>
+          </div>
         </Link>
       </div>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
           Sign in
         </Link>
       </p>

@@ -16,11 +16,19 @@ import {
 } from '@/components/ui/select';
 
 const LEAD_TYPES = [
-  { value: 'SOLAR',       label: 'Solar' },
-  { value: 'SWEEPSTAKES', label: 'Sweepstakes' },
-  { value: 'PAYDAY',      label: 'Payday' },
-  { value: 'HOMEOWNER',   label: 'Homeowner' },
+  { value: 'SOLAR',       label: 'Solar Leads' },
+  { value: 'SWEEPSTAKES', label: 'Sweepstakes Leads' },
+  { value: 'PAYDAY',      label: 'Payday Leads' },
+  { value: 'HOMEOWNER',   label: 'Homeowner Leads' },
 ] as const;
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3 mt-1">
+      {children}
+    </p>
+  );
+}
 
 export function SignupClientForm() {
   const router = useRouter();
@@ -73,15 +81,17 @@ export function SignupClientForm() {
 
   if (done) {
     return (
-      <div className="flex flex-col items-center gap-4 py-6 text-center">
-        <CheckCircle2 className="size-12 text-emerald-500" />
+      <div className="flex flex-col items-center gap-4 py-8 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 ring-1 ring-emerald-200">
+          <CheckCircle2 className="size-8 text-emerald-500" />
+        </div>
         <div>
-          <p className="font-semibold text-foreground">Account created!</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your agent will review and approve your request. You will be notified once active.
+          <p className="text-base font-semibold">Account created!</p>
+          <p className="mt-1.5 text-sm text-muted-foreground max-w-xs">
+            Your agent will review and approve your request. You&apos;ll be notified once active.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => router.push('/login')}>
           Go to Sign In
         </Button>
       </div>
@@ -89,65 +99,89 @@ export function SignupClientForm() {
   }
 
   return (
-    <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="full_name">Full Name</Label>
-        <Input id="full_name" name="full_name" required placeholder="Jane Smith" />
+    <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
+      {/* Personal */}
+      <div>
+        <SectionLabel>Personal Info</SectionLabel>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="full_name">Full Name</Label>
+            <Input id="full_name" name="full_name" required placeholder="Jane Smith" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email Address</Label>
+            <Input id="email" name="email" type="email" required placeholder="jane@example.com" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="whatsapp">
+              WhatsApp <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input id="whatsapp" name="whatsapp" type="tel" placeholder="+1 555 000 0000" />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="email">Email Address</Label>
-        <Input id="email" name="email" type="email" required placeholder="jane@example.com" />
+      {/* Business */}
+      <div className="border-t pt-5">
+        <SectionLabel>Business & Leads</SectionLabel>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Targeted Lead Type</Label>
+            <Select value={leadType} onValueChange={(v) => setLeadType(v ?? '')}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select lead type" />
+              </SelectTrigger>
+              <SelectContent>
+                {LEAD_TYPES.map((lt) => (
+                  <SelectItem key={lt.value} value={lt.value}>{lt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="business_name">
+              Business Name <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input id="business_name" name="business_name" placeholder="Acme Corp" />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="address">
+              Business Address <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input id="address" name="address" placeholder="123 Main St, City, State" />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="whatsapp">WhatsApp Number <span className="text-muted-foreground">(optional)</span></Label>
-        <Input id="whatsapp" name="whatsapp" type="tel" placeholder="+1 555 000 0000" />
+      {/* Agent */}
+      <div className="border-t pt-5">
+        <SectionLabel>Agent Link</SectionLabel>
+        <div className="space-y-1.5">
+          <Label htmlFor="agent_id">Agent ID</Label>
+          <Input id="agent_id" name="agent_id" required placeholder="Provided by your agent" />
+          <p className="text-xs text-muted-foreground">
+            You cannot create an account without a valid Agent ID.
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Targeted Lead Type</Label>
-        <Select value={leadType} onValueChange={(v) => setLeadType(v ?? '')}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select lead type" />
-          </SelectTrigger>
-          <SelectContent>
-            {LEAD_TYPES.map((lt) => (
-              <SelectItem key={lt.value} value={lt.value}>{lt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Security */}
+      <div className="border-t pt-5">
+        <SectionLabel>Security</SectionLabel>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input id="password" name="password" type="password" required minLength={8} placeholder="Min. 8 characters" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm_password">Confirm Password</Label>
+            <Input id="confirm_password" name="confirm_password" type="password" required placeholder="Repeat password" />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="business_name">Business Name <span className="text-muted-foreground">(optional)</span></Label>
-        <Input id="business_name" name="business_name" placeholder="Acme Corp" />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="address">Business Address <span className="text-muted-foreground">(optional)</span></Label>
-        <Input id="address" name="address" placeholder="123 Main St, City, State" />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="agent_id">Agent ID</Label>
-        <Input id="agent_id" name="agent_id" required placeholder="Provided by your agent" />
-        <p className="text-xs text-muted-foreground">You cannot create an account without a valid Agent ID.</p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" required minLength={8} placeholder="Min. 8 characters" />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="confirm_password">Confirm Password</Label>
-        <Input id="confirm_password" name="confirm_password" type="password" required placeholder="Repeat password" />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={busy}>
-        {busy && <Loader2 className="size-4 animate-spin" />}
-        Create Account
+      <Button type="submit" className="w-full h-10" disabled={busy}>
+        {busy ? <Loader2 className="size-4 animate-spin" /> : 'Create Account'}
       </Button>
     </form>
   );
