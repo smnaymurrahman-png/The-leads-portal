@@ -15,11 +15,24 @@ const nextConfig: NextConfig = {
   turbopack: { root: workspaceRoot },
   async redirects() {
     return [
+      // Canonical domain redirects — send any non-production host to leads-portal.net
       {
         source: '/:path*',
         has: [{ type: 'host', value: 'www.leads-portal.net' }],
         destination: 'https://leads-portal.net/:path*',
         permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'web-psi-eight-wxpm0z8r07.vercel.app' }],
+        destination: 'https://leads-portal.net/:path*',
+        permanent: false,
+      },
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'web-smnaymurrahman-6197s-projects.vercel.app' }],
+        destination: 'https://leads-portal.net/:path*',
+        permanent: false,
       },
     ];
   },
